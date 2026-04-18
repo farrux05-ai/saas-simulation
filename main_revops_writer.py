@@ -63,10 +63,12 @@ class RevOpsDataWriter:
             )
 
             logger.info(f"✓ HubSpot write complete:")
-            logger.info(f"  - Contacts: {len(result['contacts'])}")
-            logger.info(f"  - Companies: {len(result['companies'])}")
-            logger.info(f"  - Deals: {len(result['deals'])}")
-            logger.info(f"  - Errors: {len(result['errors'])}")
+            logger.info(f"  - Contacts:   {len(result['contacts'])}")
+            logger.info(f"  - Companies:  {len(result['companies'])}")
+            logger.info(f"  - Deals:      {len(result['deals'])}")
+            logger.info(f"  - Advanced:   {result['deals_advanced']}")
+            logger.info(f"  - Activities: {sum(result['activities'].values())} (calls={result['activities']['calls']}, meetings={result['activities']['meetings']}, emails={result['activities']['emails']})")
+            logger.info(f"  - Errors:     {len(result['errors'])}")
 
             return result
 
@@ -90,9 +92,10 @@ class RevOpsDataWriter:
             )
 
             logger.info(f"✓ Stripe write complete:")
-            logger.info(f"  - Customers: {len(result['customers'])}")
-            logger.info(f"  - Subscriptions: {len(result['subscriptions'])}")
-            logger.info(f"  - Payments: {len(result['payments'])}")
+            logger.info(f"  - Customers:      {len(result['customers'])}")
+            logger.info(f"  - Subscriptions:  {len(result['subscriptions'])}")
+            logger.info(f"  - Invoices (new): {len(result['invoice_history'])}")
+            logger.info(f"  - Specific PMTs:  {len(result['payments'])}")
 
             return result
 
@@ -117,10 +120,12 @@ class RevOpsDataWriter:
             )
 
             logger.info(f"✓ Supabase write complete:")
-            logger.info(f"  - Companies: {result['companies']}")
-            logger.info(f"  - Users: {result['users']}")
-            logger.info(f"  - Events: {result['events']}")
-            logger.info(f"  - Subscriptions: {result['subscriptions']}")
+            logger.info(f"  - Companies:        {result['companies']}")
+            logger.info(f"  - Users:            {result['users']}")
+            logger.info(f"  - Subscriptions:    {result['subscriptions']}")
+            logger.info(f"  - Events:           {result['events']}")
+            logger.info(f"  - Dim Date Rows:    {result['dim_date_rows']}")
+            logger.info(f"  - Statuses Updated: {result.get('companies_updated', 0)}")
 
             return result
 

@@ -223,7 +223,48 @@ def generate_sample_posthog_events(num_users: int = 25, days_back: int = 30) -> 
             }
         })
 
-        # Signup event
+        # --- MARKETING SIGNALS (Pre-Signup behavior) ---
+        marketing_date = signup_date - timedelta(days=random.randint(1, 7))
+
+        # 1. Page Viewed (Discovery)
+        events.append({
+            'event': 'Page Viewed',
+            'distinct_id': user_id,
+            'properties': {
+                'path': '/',
+                'source': random.choice(['Google', 'LinkedIn', 'Direct', 'Meta Ads']),
+                'company': company,
+                'email': email
+            },
+            'timestamp': marketing_date.isoformat()
+        })
+
+        # 2. Pricing Page Viewed (Interest)
+        events.append({
+            'event': 'Pricing Page Viewed',
+            'distinct_id': user_id,
+            'properties': {
+                'plan_seen': plan,
+                'company': company,
+                'email': email
+            },
+            'timestamp': (marketing_date + timedelta(hours=2)).isoformat()
+        })
+
+        # 3. Demo Requested (Intent - The MQL Signal)
+        if random.random() > 0.3:
+            events.append({
+                'event': 'Demo Requested',
+                'distinct_id': user_id,
+                'properties': {
+                    'company': company,
+                    'email': email
+                },
+                'timestamp': (marketing_date + timedelta(days=1)).isoformat()
+            })
+
+        # --- PRODUCT DATA (The Signup) ---
+        # User Signed Up event
         events.append({
             'event': 'User Signed Up',
             'distinct_id': user_id,

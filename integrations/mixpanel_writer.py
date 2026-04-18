@@ -175,7 +175,48 @@ def generate_sample_events(num_users: int = 20, days_back: int = 30) -> List[Dic
         plan = random.choice(plans)
         signup_date = datetime.now() - timedelta(days=random.randint(1, days_back))
 
-        # Signup event
+        # --- MARKETING SIGNALS (Pre-Signup behavior) ---
+        # Simulate a lead journey before they actually sign up
+        marketing_date = signup_date - timedelta(days=random.randint(1, 7))
+
+        # 1. Page Viewed (Discovery)
+        events.append({
+            'event': 'Page Viewed',
+            'properties': {
+                'distinct_id': user_id,
+                '$insert_id': uuid.uuid4().hex,
+                'time': int(marketing_date.timestamp()),
+                'path': '/',
+                'source': random.choice(['Google', 'LinkedIn', 'Direct', 'Meta Ads']),
+                'company': company
+            }
+        })
+
+        # 2. Pricing Page Viewed (Interest)
+        events.append({
+            'event': 'Pricing Page Viewed',
+            'properties': {
+                'distinct_id': user_id,
+                '$insert_id': uuid.uuid4().hex,
+                'time': int((marketing_date + timedelta(hours=2)).timestamp()),
+                'plan_seen': plan,
+                'company': company
+            }
+        })
+
+        # 3. Demo Requested (Intent - The MQL Signal)
+        if random.random() > 0.3:  # 70% of our sample users requested a demo
+            events.append({
+                'event': 'Demo Requested',
+                'properties': {
+                    'distinct_id': user_id,
+                    '$insert_id': uuid.uuid4().hex,
+                    'time': int((marketing_date + timedelta(days=1)).timestamp()),
+                    'company': company
+                }
+            })
+
+        # --- PRODUCT DATA (The Signup) ---
         events.append({
             'event': 'User Signup',
             'properties': {

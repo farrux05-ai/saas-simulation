@@ -1,22 +1,22 @@
 # RevOps Data Writer 🚀
 
-A realistic B2B SaaS data ingestion pipeline generator. This script populates your sandbox or free trial accounts with realistic test data for common RevOps platforms.
+A professional-grade B2B SaaS data ingestion pipeline generator. This script populates your sandbox or free trial accounts with realistic, integrated test data across the entire customer lifecycle (Marketing -> Sales -> Finance -> Support).
 
-## 📋 Features
+## 📋 Professional Features
 
-The script writes realistic B2B SaaS data to the following platforms:
+This isn't just a "mock data" script; it simulates a **living, breathing B2B SaaS system**:
 
-- **HubSpot**: Contacts, Companies, Deals (CRM data)
-- **Stripe**: Customers, Subscriptions, One-time payments
-- **Supabase**: Companies, Users, Events, Subscriptions (Database records)
-- **Mixpanel**: Product analytics events, User profiles
-- **PostHog**: Product analytics events, User profiles
-- **Freshdesk**: Support tickets
-- **Meta Ads**: Conversion events (Leads, Signups, Purchases)
+- **Real-Time Funnel Simulation**: Generates Marketing signals (Page Views, Demo Requests) in Mixpanel/PostHog before a user even signs up.
+- **Advanced CRM Workflow**: HubSpot interaction with Deal Stage advancement and CRM Activities (Calls, Meetings, Emails) linked to the pipeline.
+- **Financial Modeling**: Full Stripe Invoice history (3-12 months back) for every subscription, including payment failures and retries for MRR Waterfall testing.
+- **SCD Type 2 Ready**: Random status updates (e.g., Company Churn, Plan Upgrades) on every run, enabling dbt Snapshot testing.
+- **Data Warehouse Built-ins**: Automatically populates a `dim_date` (Calendar dimension) in Supabase for professional time-series modeling.
 
-## 🎯 Objective
+## 🎯 Objectives
 
-Populate each platform with realistic data so you can practice data extraction (ELT), transformation, and building analytics dashboards on top of a "live" system.
+1. **Practice ELT/ETL**: Connect Fivetran, Airbyte, or Meltano to real APIs.
+2. **Build dbt Models**: Use professional schemas to build MRR Waterfalls, Attribution models, and Sales Velocity dashboards.
+3. **Data Orchestration**: Schedule the pipeline via GitHub Actions to simulate daily data growth.
 
 ## 🛠️ Setup
 
@@ -37,107 +37,55 @@ pip install -r requirements.txt
 
 ### 3. Environment Variables
 
-Create a `.env` file and add the required keys:
+Create a `.env` file and add the required keys (see `.env.example` for details):
 
 ```bash
-# HubSpot (https://app.hubspot.com/)
-HUBSPOT_ACCESS_TOKEN=pat-na1-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-
-# Stripe (https://dashboard.stripe.com/test/apikeys)
-STRIPE_SECRET_KEY=[YOUR_STRIPE_SECRET_KEY]
-
-# Supabase (https://supabase.com/dashboard/project/_/settings/api)
-SUPABASE_URL=https://xxxxxxxxxxxxx.supabase.co
-SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-
-# Mixpanel (https://mixpanel.com/settings/project/)
-MIXPANEL_PROJECT_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-MIXPANEL_API_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-
-# PostHog (https://app.posthog.com/project/settings)
-POSTHOG_API_KEY=phc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-POSTHOG_PROJECT_ID=12345
-
-# Freshdesk (https://yourcompany.freshdesk.com/a/admin/api_settings)
-FRESHDESK_DOMAIN=yourcompany.freshdesk.com
-FRESHDESK_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxx
-
-# Meta Ads (https://developers.facebook.com/apps/)
-META_ACCESS_TOKEN=EAAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-META_ACCOUNT_ID=act_123456789
+HUBSPOT_ACCESS_TOKEN=...
+STRIPE_SECRET_KEY=...
+SUPABASE_URL=...
+SUPABASE_SERVICE_KEY=...
+# ... etc
 ```
 
 ## 🚀 Usage
 
 ### Write to all configured services
-
 ```bash
 python main_revops_writer.py --all
 ```
 
 ### Write to specific services
-
 ```bash
-# HubSpot and Stripe only
 python main_revops_writer.py --services hubspot stripe
 ```
 
-### Check configuration
-
-```bash
-python main_revops_writer.py --check-config
-```
-
 ### Dry run (Simulate without writing)
-
 ```bash
 python main_revops_writer.py --dry-run --all
 ```
 
-## 📊 Data Quantities (Default)
+## 📊 Simulated Data Schema
 
-- **HubSpot**: 15 contacts, 8 companies, 12 deals
-- **Stripe**: 15 customers (~70% with subscriptions)
-- **Supabase**: 40 companies, ~200 users, ~2000 events
-- **Mixpanel/PostHog**: 25 users, 30 days of activity
-- **Freshdesk**: 25 support tickets
-- **Meta Ads**: 50 conversion events
-
-## 📁 Project Structure
-
-```
-ingestion_practice/
-├── main_revops_writer.py    # Main orchestrator script
-├── config.py                 # Configuration management
-├── utils/
-│   └── logger.py             # Logging utility
-├── integrations/
-│   ├── hubspot_writer.py     # HubSpot CRM writer
-│   ├── stripe_writer.py      # Stripe payment writer
-│   ├── supabase_writer.py    # Supabase DB writer
-│   ├── mixpanel_writer.py    # Mixpanel analytics writer
-│   ├── posthog_writer.py     # PostHog analytics writer
-│   ├── freshdesk_writer.py   # Freshdesk ticket writer
-│   └── meta_ads_writer.py    # Meta Ads conversion writer
-├── .env                      # API keys (git-ignored)
-└── README.md                 # This file
-```
+| Platform | Objects/Tables | Simulation Detail |
+| :--- | :--- | :--- |
+| **HubSpot** | Contacts, Companies, Deals, Activities | Stage Progression, Sales Touchpoints |
+| **Stripe** | Customers, Subs, Invoices | 3-12mo Billing History, Retries |
+| **Supabase** | Companies, Users, Subs, Events, dim_date | Real DB primary/foreign key relationships |
+| **Mixpanel** | Profiles, Actions, Marketing Signals | Demo Request -> Signup -> Usage funnel |
+| **Freshdesk**| Tickets, Customers | Support volume vs. Subscription status |
+| **Meta Ads** | Conversions | Lead/Signup attribution signals |
 
 ## ⚠️ Important Notes
 
 ### 1. Test/Sandbox Environments
-ONLY use this script on **test/sandbox** environments. Never use production accounts!
+ONLY use this script on **test/sandbox** environments. NEVER use production accounts!
 
-### 2. API Rate Limits
-Some platforms have rate limits (e.g., HubSpot 100 requests/10s). The script includes basic batching, but if you hit limits, wait a few minutes and retry.
+### 2. Supabase Table Creation
+The `supabase_writer.py` includes a commented-out SQL block for the required table DDLs (Companies, Users, Subscriptions, Events, dim_date). Ensure these exist before running.
 
-### 3. Supabase Setup
-Ensure you have created the necessary tables (`companies`, `users`, `events`, `subscriptions`) in your Supabase project before running the script.
-
-## 📝 License
-
-This is a learning project. Use at your own risk!
+### 3. Automated Scheduling
+This project includes a `.github/workflows/revops_ingest.yml` to automate daily data generation using GitHub Actions.
 
 ---
 
-**Happy data writing! 🎉**
+**Happy data modeling! 🎉**
