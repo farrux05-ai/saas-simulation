@@ -132,6 +132,141 @@ class HubSpotWriter:
         result = self._make_request('PUT', endpoint)
         return result
 
+    def create_activity(self, activity_type: str, deal_id: str, contact_id: str, days_ago: int) -> Dict:
+        """
+        Create a single CRM activity (call, meeting, or email) linked to a deal and contact.
+
+        Activity types represent the real sales process:
+        - call:    Sales rep phones the prospect to qualify or follow-up
+        - meeting: Demo, discovery call recorded as a structured meeting
+        - email:   Follow-up email, proposal sent, etc.
+
+        Args:
+            activity_type: 'calls', 'meetings', or 'emails'
+            deal_id: HubSpot Deal ID to associate with
+            contact_id: HubSpot Contact ID to associate with
+            days_ago: How many days ago this activity happened
+
+        Returns:
+            Created activity object
+        """
+        timestamp_ms = int((datetime.now() - timedelta(days=days_ago)).timestamp() * 1000)
+
+        if activity_type == 'calls':
+            properties = {
+                'hs_call_title':    random.choice(['Discovery Call', 'Follow-up Call', 'Demo Call', 'Closing Call']),
+                'hs_call_duration': str(random.choice([5, 10, 15, 20, 30, 45, 60]) * 60 * 1000),  # ms
+                'hs_call_status':   random.choice(['COMPLETED', 'COMPLETED', 'COMPLETED', 'NO_ANSWER']),
+                'hs_call_direction': random.choice(['OUTBOUND', 'OUTBOUND', 'INBOUND']),
+                'hs_timestamp':     str(timestamp_ms),
+                'hs_call_body':     random.choice([
+                    'Discussed pricing and next steps.',
+                    'Prospect requested a product demo.',
+                    'Left voicemail, will follow up via email.',
+                    'Call went well, deal moving forward.',
+                ]),
+            }
+        elif activity_type == 'meetings':
+            properties = {
+                'hs_meeting_title':   random.choice(['Product Demo', 'Discovery Meeting', 'Technical Review', 'Contract Review']),
+                'hs_meeting_outcome': random.choice(['COMPLETED', 'COMPLETED', 'NO_SHOW', 'RESCHEDULED']),
+                'hs_timestamp':       str(timestamp_ms),
+                'hs_meeting_start_time': str(timestamp_ms),
+                'hs_meeting_end_time':   str(timestamp_ms + random.choice([30, 45, 60]) * 60 * 1000),
+                'hs_meeting_body':    random.choice([
+                    'Walked through the platform. Prospect liked the reporting features.',
+                    'Discussed integration requirements and timeline.',
+                    'Technical team joined. Questions about API and data security.',
+                    'Agreement on scope. Awaiting legal review.',
+                ]),
+            }
+        else:  # emails
+            properties = {
+                'hs_email_subject': random.choice([
+                    'Following up on our conversation',
+                    'Proposal attached — next steps',
+                    'Quick question re: your timeline',
+                    'Resources from today\'s demo',
+                ]),
+                'hs_email_direction': random.choice(['EMAIL', 'FORWARDED_EMAIL']),
+                'hs_email_status':    'SENT',
+                'hs_timestamp':       str(timestamp_ms),
+            }
+
+        endpoint = f"crm/v3/objects/{activity_type}"
+        payload  = {'properties': properties}
+
+        try:
+            result = self._make_request('POST', endpoint, payload)
+
+            # Associate activity with the deal and contact
+            for obj_type, obj_id, assoc_type in [
+                ('deals',    deal_id,    'activity_to_deal'),
+                ('contacts', contact_id, 'activity_to_contact'),
+            ]:
+                try:
+                    self.associate_objects(activity_type, result['id'], obj_type, obj_id, assoc_type)
+                except Exception:
+                    pass  # Association is best-effort
+
+            return result
+        except Exception as e:
+            logger.warning(f"Failed to create {activity_type} activity: {e}")
+            return {}
+
+    def create_deal_activities(self, deal_id: str, contact_id: str, deal_stage: str) -> Dict[str, int]:
+        """
+        Generate a realistic sequence of activities for a deal based on its current stage.
+        Earlier-stage deals have fewer touchpoints; later-stage deals have more.
+
+        Real-world pattern:
+            appointmentscheduled  → 1-2 activities (just starting)
+            qualifiedtobuy        → 2-3 activities (qualification calls)
+            presentationscheduled → 3-5 activities (demo + follow-ups)
+            decisionmakerboughtin → 4-6 activities (stakeholder meetings)
+            contractsent          → 5-8 activities (legal review, negotiation)
+            closedwon/closedlost  → 6-10 activities (full history)
+
+        Args:
+            deal_id:     HubSpot Deal ID
+            contact_id:  Primary Contact ID for this deal
+            deal_stage:  Current deal stage (determines activity volume)
+
+        Returns:
+            Dict with counts per activity type
+        """
+        stage_activity_count = {
+            'appointmentscheduled':  (1, 2),
+            'qualifiedtobuy':        (2, 3),
+            'presentationscheduled': (3, 5),
+            'decisionmakerboughtin': (4, 6),
+            'contractsent':          (5, 8),
+            'closedwon':             (6, 10),
+            'closedlost':            (4, 7),
+        }
+        low, high = stage_activity_count.get(deal_stage, (2, 4))
+        total_activities = random.randint(low, high)
+
+        # Weight: more calls early, more meetings mid, emails throughout
+        activity_types = random.choices(
+            ['calls', 'meetings', 'emails'],
+            weights=[0.40, 0.30, 0.30],
+            k=total_activities
+        )
+
+        counts = {'calls': 0, 'meetings': 0, 'emails': 0}
+        for i, atype in enumerate(activity_types):
+            days_ago = total_activities - i + random.randint(0, 3)
+            result = self.create_activity(atype, deal_id, contact_id, days_ago)
+            if result:
+                counts[atype] += 1
+
+        logger.debug(
+            f"Deal {deal_id} ({deal_stage}): "
+            f"{counts['calls']} calls, {counts['meetings']} meetings, {counts['emails']} emails"
+        )
+        return counts
+
 
 def generate_sample_contacts(count: int = 10) -> List[Dict]:
     """Generate sample contact data"""
@@ -329,6 +464,7 @@ def write_hubspot_data(
         'contacts': [],
         'companies': [],
         'deals': [],
+        'activities': {'calls': 0, 'meetings': 0, 'emails': 0},
         'errors': []
     }
 
@@ -404,6 +540,22 @@ def write_hubspot_data(
                     except Exception as e:
                         logger.warning(f"Failed to associate deal with company: {e}")
 
+                # Generate realistic activity history for this deal
+                if results['contacts']:
+                    contact = random.choice(results['contacts'])
+                    deal_stage = deal_data.get('dealstage', 'appointmentscheduled')
+                    try:
+                        activity_counts = writer.create_deal_activities(
+                            deal_id=created_deal['id'],
+                            contact_id=contact['id'],
+                            deal_stage=deal_stage
+                        )
+                        results['activities']['calls']    += activity_counts.get('calls', 0)
+                        results['activities']['meetings'] += activity_counts.get('meetings', 0)
+                        results['activities']['emails']   += activity_counts.get('emails', 0)
+                    except Exception as e:
+                        logger.warning(f"Failed to create activities for deal: {e}")
+
             except Exception as e:
                 logger.error(f"Failed to create deal: {e}")
                 results['errors'].append({'type': 'deal', 'error': str(e)})
@@ -412,14 +564,17 @@ def write_hubspot_data(
         deals_advanced = advance_deal_stages(writer)
         results['deals_advanced'] = deals_advanced
 
+        total_activities = sum(results['activities'].values())
+
         # Summary
         logger.info(f"""
 HubSpot Data Write Complete:
-- Companies created: {len(results['companies'])}
-- Contacts created: {len(results['contacts'])}
-- Deals created: {len(results['deals'])}
-- Deals advanced: {deals_advanced}
-- Errors: {len(results['errors'])}
+- Companies created:  {len(results['companies'])}
+- Contacts created:   {len(results['contacts'])}
+- Deals created:      {len(results['deals'])}
+- Deals advanced:     {deals_advanced}
+- Activities logged:  {total_activities} (calls={results['activities']['calls']}, meetings={results['activities']['meetings']}, emails={results['activities']['emails']})
+- Errors:             {len(results['errors'])}
         """)
 
         return results
