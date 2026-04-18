@@ -254,6 +254,77 @@ class StripeDataWriter:
             logger.error(f"Failed to create payment intent: {e}")
             raise
 
+    def create_invoice_history(
+        self,
+        customer_id: str,
+        subscription_id: str,
+        plan_price: int,
+        months_back: int = None
+    ) -> List[Dict]:
+        """
+        Create realistic invoice history for a subscription.
+        Simulates 3-12 months of past billing with occasional payment failures.
+
+        Real-world patterns modeled:
+        - Most invoices are paid on time
+        - ~8% of invoices fail (card declined, etc.)
+        - Failed invoices are followed by a retry (sometimes successful)
+
+        Args:
+            customer_id: Stripe customer ID
+            subscription_id: Stripe subscription ID
+            plan_price: Monthly price in dollars
+            months_back: How many months of history to create (random 3-12 if not set)
+
+        Returns:
+            List of created invoice records (as dicts for logging)
+        """
+        if months_back is None:
+            months_back = random.randint(3, 12)
+
+        logger.info(f"Creating {months_back} months of invoice history for sub {subscription_id}")
+
+        invoice_records = []
+
+        for month_offset in range(months_back, 0, -1):
+            invoice_date = datetime.now() - timedelta(days=30 * month_offset)
+
+            # 8% chance of payment failure on any given month
+            payment_failed = random.random() < 0.08
+            status = "open" if payment_failed else "paid"
+
+            # Small amount variation simulates usage overages or discounts
+            variation = random.choice([-10, 0, 0, 0, 0, 10, 20, 50])
+            amount = max(0, plan_price + variation)
+
+            record = {
+                "customer_id": customer_id,
+                "subscription_id": subscription_id,
+                "invoice_date": invoice_date.strftime("%Y-%m-%d"),
+                "amount_dollars": amount,
+                "status": status,
+                "payment_method": "card",
+            }
+            invoice_records.append(record)
+
+            # After a failure, 70% chance the next retry succeeds
+            if payment_failed and random.random() < 0.7:
+                retry_date = invoice_date + timedelta(days=3)
+                invoice_records.append({
+                    "customer_id": customer_id,
+                    "subscription_id": subscription_id,
+                    "invoice_date": retry_date.strftime("%Y-%m-%d"),
+                    "amount_dollars": amount,
+                    "status": "paid",
+                    "payment_method": "card",
+                })
+
+        logger.info(
+            f"  → Generated {len(invoice_records)} invoices "
+            f"({months_back} months, {sum(1 for r in invoice_records if r['status'] == 'open')} failures)"
+        )
+        return invoice_records
+
     def generate_realistic_data_set(
         self,
         num_customers: int = 10,
@@ -277,6 +348,7 @@ class StripeDataWriter:
             "customers": [],
             "subscriptions": [],
             "payments": [],
+            "invoice_history": [],
             "price_ids": None
         }
 
@@ -316,6 +388,15 @@ class StripeDataWriter:
                     )
                     results["subscriptions"].append(subscription)
 
+                    # Generate invoice history for this subscription
+                    plan_price = self.PRICING_PLANS.get(plan, {}).get("price", 99)
+                    invoices = self.create_invoice_history(
+                        customer_id=customer.id,
+                        subscription_id=subscription.id,
+                        plan_price=plan_price
+                    )
+                    results["invoice_history"].extend(invoices)
+
                 # Random chance of one-time payment
                 if random.random() < 0.2:
                     payment_types = [
@@ -335,9 +416,10 @@ class StripeDataWriter:
 
             logger.info("=" * 60)
             logger.info("DATA GENERATION COMPLETE")
-            logger.info(f"Customers created: {len(results['customers'])}")
-            logger.info(f"Subscriptions created: {len(results['subscriptions'])}")
-            logger.info(f"One-time payments: {len(results['payments'])}")
+            logger.info(f"Customers created:       {len(results['customers'])}")
+            logger.info(f"Subscriptions created:   {len(results['subscriptions'])}")
+            logger.info(f"Invoice records created: {len(results['invoice_history'])}")
+            logger.info(f"One-time payments:       {len(results['payments'])}")
             logger.info("=" * 60)
 
             return results
@@ -356,7 +438,7 @@ def write_stripe_data(api_key: str, num_customers: int = 10) -> Dict:
         num_customers: Number of customers to create
 
     Returns:
-        Dictionary with created data
+        Dictionary with created data (customers, subscriptions, invoice_history, payments)
     """
     writer = StripeDataWriter(api_key)
     return writer.generate_realistic_data_set(num_customers=num_customers)

@@ -91,6 +91,22 @@ class SupabaseWriter:
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         );
+
+        -- Calendar dimension table (required for all time-based dbt models)
+        CREATE TABLE IF NOT EXISTS dim_date (
+            date_day      DATE PRIMARY KEY,
+            year          INTEGER,
+            month         INTEGER,
+            day           INTEGER,
+            quarter       INTEGER,
+            week_of_year  INTEGER,
+            day_of_week   INTEGER,   -- 0=Monday, 6=Sunday
+            day_name      TEXT,
+            month_name    TEXT,
+            is_weekend    BOOLEAN,
+            is_month_end  BOOLEAN,
+            is_quarter_end BOOLEAN
+        );
         """
 
         try:
@@ -293,6 +309,59 @@ class SupabaseWriter:
             logger.error(f"Failed to insert subscriptions: {e}")
             raise
 
+    def insert_dim_date(self, years_back: int = 2, years_forward: int = 1) -> int:
+        """
+        Populate a dim_date (calendar) table covering a date range.
+        This is a standard fact in every data warehouse — all time-based
+        dbt models join against it.
+
+        Args:
+            years_back: How many years in the past to cover
+            years_forward: How many years in the future to cover
+
+        Returns:
+            Number of date rows inserted
+        """
+        logger.info(f"Populating dim_date ({years_back}y back → {years_forward}y forward)...")
+
+        start_date = datetime.now().date() - timedelta(days=365 * years_back)
+        end_date   = datetime.now().date() + timedelta(days=365 * years_forward)
+
+        rows = []
+        current = start_date
+        while current <= end_date:
+            rows.append({
+                'date_day':      current.isoformat(),
+                'year':          current.year,
+                'month':         current.month,
+                'day':           current.day,
+                'quarter':       (current.month - 1) // 3 + 1,
+                'week_of_year':  current.isocalendar()[1],
+                'day_of_week':   current.weekday(),          # 0=Mon … 6=Sun
+                'day_name':      current.strftime('%A'),
+                'month_name':    current.strftime('%B'),
+                'is_weekend':    current.weekday() >= 5,
+                'is_month_end':  (current + timedelta(days=1)).month != current.month,
+                'is_quarter_end': (
+                    current.month in (3, 6, 9, 12)
+                    and (current + timedelta(days=1)).month != current.month
+                ),
+            })
+            current += timedelta(days=1)
+
+        try:
+            # Upsert in batches — safe to run multiple times
+            batch_size = 500
+            for i in range(0, len(rows), batch_size):
+                batch = rows[i:i + batch_size]
+                self.client.table('dim_date').upsert(batch, on_conflict='date_day').execute()
+
+            logger.info(f"dim_date populated: {len(rows)} rows")
+            return len(rows)
+        except Exception as e:
+            logger.error(f"Failed to populate dim_date: {e}")
+            raise
+
     def populate_all(self, num_companies: int = 30) -> Dict[str, int]:
         """
         Populate all tables with sample data
@@ -309,17 +378,21 @@ class SupabaseWriter:
             # Create tables (structure)
             self.create_tables()
 
-            # Insert data
-            companies = self.insert_companies(num_companies)
-            users = self.insert_users(companies, users_per_company=5)
-            events = self.insert_events(users, companies, events_per_user=20)
+            # Populate the date dimension first (idempotent — safe to run every time)
+            dim_date_rows = self.insert_dim_date()
+
+            # Insert transactional data
+            companies     = self.insert_companies(num_companies)
+            users         = self.insert_users(companies, users_per_company=5)
+            events        = self.insert_events(users, companies, events_per_user=20)
             subscriptions = self.insert_subscriptions(companies)
 
             summary = {
-                'companies': len(companies),
-                'users': len(users),
-                'events': len(events),
-                'subscriptions': len(subscriptions)
+                'dim_date_rows': dim_date_rows,
+                'companies':     len(companies),
+                'users':         len(users),
+                'events':        len(events),
+                'subscriptions': len(subscriptions),
             }
 
             logger.info(f"Successfully populated Supabase: {summary}")
