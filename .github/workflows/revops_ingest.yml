@@ -28,14 +28,22 @@ jobs:
     - name: Run data ingestion
       env:
         HUBSPOT_ACCESS_TOKEN: ${{ secrets.HUBSPOT_ACCESS_TOKEN }}
+        HUBSPOT_PORTAL_ID: ${{ secrets.HUBSPOT_PORTAL_ID }}
         STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+        STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
+        STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         MIXPANEL_PROJECT_TOKEN: ${{ secrets.MIXPANEL_PROJECT_TOKEN }}
         MIXPANEL_API_SECRET: ${{ secrets.MIXPANEL_API_SECRET }}
         POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+        POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
         FRESHDESK_DOMAIN: ${{ secrets.FRESHDESK_DOMAIN }}
         FRESHDESK_API_KEY: ${{ secrets.FRESHDESK_API_KEY }}
         META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
         META_ACCOUNT_ID: ${{ secrets.META_ACCOUNT_ID }}
+        META_PIXEL_ID: ${{ secrets.META_PIXEL_ID }}
+        META_TEST_EVENT_ID: ${{ secrets.META_TEST_EVENT_ID }}
       run: python main_revops_writer.py --all
