@@ -329,18 +329,88 @@ class SupabaseWriter:
             logger.error(f"Failed to populate Supabase: {e}")
             raise
 
+    def update_company_statuses(self) -> int:
+        """
+        Randomly advance statuses of existing companies to simulate real-world churn
+        and upgrades. This creates meaningful deltas for dbt snapshot (SCD Type 2) testing.
+
+        Returns:
+            Number of companies updated
+        """
+        logger.info("Updating existing company statuses...")
+
+        # Status lifecycle: Trial → Active → At Risk → Churned
+        transitions = {
+            'Trial':    ['Active', 'Churned'],
+            'Active':   ['Active', 'Active', 'Active', 'At Risk'],  # 75% stay active
+            'At Risk':  ['At Risk', 'Churned', 'Active'],
+            'Churned':  ['Churned'],  # Terminal state
+        }
+
+        plan_upgrades = {
+            'Free':         'Starter',
+            'Starter':      'Professional',
+            'Professional': 'Enterprise',
+            'Enterprise':   'Enterprise',
+        }
+
+        try:
+            response = self.client.table('companies').select('id,status,plan_type').execute()
+            companies = response.data
+
+            if not companies:
+                logger.info("No existing companies found to update")
+                return 0
+
+            # Update ~30% of companies
+            to_update = random.sample(companies, max(1, len(companies) // 3))
+
+            updated = 0
+            for company in to_update:
+                current_status = company.get('status', 'Active')
+                current_plan = company.get('plan_type', 'Starter')
+
+                new_status = random.choice(transitions.get(current_status, ['Active']))
+
+                # 20% chance of plan upgrade
+                new_plan = plan_upgrades.get(current_plan, current_plan) \
+                    if random.random() < 0.2 else current_plan
+
+                self.client.table('companies').update({
+                    'status':     new_status,
+                    'plan_type':  new_plan,
+                    'updated_at': datetime.now().isoformat()
+                }).eq('id', company['id']).execute()
+
+                updated += 1
+
+            logger.info(f"Updated {updated} company statuses")
+            return updated
+
+        except Exception as e:
+            logger.error(f"Failed to update company statuses: {e}")
+            raise
+
+
 
 def write_supabase_data(url: str, service_key: str, num_companies: int = 30) -> Dict[str, int]:
     """
-    Main function to write data to Supabase
+    Main function to write data to Supabase.
+    Inserts new records AND updates existing company statuses for snapshot testing.
 
     Args:
         url: Supabase URL
         service_key: Supabase service key
-        num_companies: Number of companies to create
+        num_companies: Number of new companies to create each run
 
     Returns:
-        Summary of created records
+        Summary of created and updated records
     """
     writer = SupabaseWriter(url, service_key)
-    return writer.populate_all(num_companies)
+    result = writer.populate_all(num_companies)
+
+    # Also update existing statuses to generate snapshot deltas
+    updated = writer.update_company_statuses()
+    result['companies_updated'] = updated
+
+    return result

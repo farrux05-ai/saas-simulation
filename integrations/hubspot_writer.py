@@ -244,6 +244,65 @@ def generate_sample_deals(count: int = 8, companies: List[Dict] = None) -> List[
     return deals
 
 
+def advance_deal_stages(writer: 'HubSpotWriter') -> int:
+    """
+    Fetch recent open deals and advance ~30% of them to the next pipeline stage.
+    This generates realistic SCD deltas for dbt snapshot testing.
+
+    Returns:
+        Number of deals advanced
+    """
+    # Ordered pipeline stages (open stages only — closedwon/closedlost are terminal)
+    stage_progression = [
+        'appointmentscheduled',
+        'qualifiedtobuy',
+        'presentationscheduled',
+        'decisionmakerboughtin',
+        'contractsent',
+        'closedwon',   # terminal — won't advance further
+    ]
+
+    try:
+        response = writer._make_request(
+            'GET',
+            'crm/v3/objects/deals?limit=50&properties=dealstage,dealname'
+        )
+        deals = response.get('results', [])
+
+        if not deals:
+            logger.info("No existing deals found to advance")
+            return 0
+
+        # Pick ~30% of deals
+        open_deals = [
+            d for d in deals
+            if d.get('properties', {}).get('dealstage') not in ('closedwon', 'closedlost')
+        ]
+        to_advance = random.sample(open_deals, max(1, len(open_deals) // 3))
+
+        advanced = 0
+        for deal in to_advance:
+            current_stage = deal['properties'].get('dealstage', 'appointmentscheduled')
+            if current_stage in stage_progression:
+                idx = stage_progression.index(current_stage)
+                next_stage = stage_progression[min(idx + 1, len(stage_progression) - 1)]
+                if next_stage != current_stage:
+                    writer._make_request(
+                        'PATCH',
+                        f"crm/v3/objects/deals/{deal['id']}",
+                        {'properties': {'dealstage': next_stage}}
+                    )
+                    logger.debug(f"Advanced deal {deal['id']}: {current_stage} → {next_stage}")
+                    advanced += 1
+
+        logger.info(f"Advanced {advanced} deal(s) to next stage")
+        return advanced
+
+    except Exception as e:
+        logger.error(f"Failed to advance deal stages: {e}")
+        return 0  # Non-fatal — don't block the rest of the run
+
+
 def write_hubspot_data(
     access_token: str,
     num_contacts: int = 10,
@@ -349,12 +408,17 @@ def write_hubspot_data(
                 logger.error(f"Failed to create deal: {e}")
                 results['errors'].append({'type': 'deal', 'error': str(e)})
 
+        # Advance existing deal stages (for snapshot delta testing)
+        deals_advanced = advance_deal_stages(writer)
+        results['deals_advanced'] = deals_advanced
+
         # Summary
         logger.info(f"""
 HubSpot Data Write Complete:
 - Companies created: {len(results['companies'])}
 - Contacts created: {len(results['contacts'])}
 - Deals created: {len(results['deals'])}
+- Deals advanced: {deals_advanced}
 - Errors: {len(results['errors'])}
         """)
 
