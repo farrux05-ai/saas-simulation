@@ -217,12 +217,15 @@ def generate_sample_events(num_users: int = 20, days_back: int = 30) -> List[Dic
             })
 
         # --- PRODUCT DATA (The Signup) ---
+        # Ensure signup is at least 1 hour in the past to avoid clock drift issues
+        signup_date_safe = signup_date - timedelta(hours=1)
+
         events.append({
             'event': 'User Signup',
             'properties': {
                 'distinct_id': user_id,
                 '$insert_id': uuid.uuid4().hex,
-                'time': int(signup_date.timestamp()) - 60,
+                'time': int(signup_date_safe.timestamp()),
                 'email': user_id,
                 'company': company,
                 'plan': plan,
@@ -232,17 +235,21 @@ def generate_sample_events(num_users: int = 20, days_back: int = 30) -> List[Dic
         })
 
         # Simulate activity over time
-        current_date = signup_date
-        while current_date < datetime.now():
+        current_date = signup_date_safe
+        # End simulation at the end of yesterday to stay far away from 'future time' validation
+        end_limit = (datetime.now() - timedelta(days=1)).replace(hour=23, minute=59, second=59)
+
+        while current_date < end_limit:
             # Random number of sessions per day (0-5)
             sessions = random.randint(0, 5)
 
             for _ in range(sessions):
-                session_time = current_date + timedelta(hours=random.randint(8, 20))
-                # Ensure session_time is never in the future
-                now_safe = datetime.now() - timedelta(hours=2)
-                if session_time > now_safe:
-                    session_time = now_safe
+                # Randomize session hour but stay within that day
+                session_time = current_date + timedelta(hours=random.randint(0, 23))
+                
+                # Double check against end_limit to avoid any 'future' drift
+                if session_time > end_limit:
+                    session_time = end_limit
 
                 # Login
                 events.append({
@@ -250,7 +257,7 @@ def generate_sample_events(num_users: int = 20, days_back: int = 30) -> List[Dic
                     'properties': {
                         'distinct_id': user_id,
                         '$insert_id': uuid.uuid4().hex,
-                        'time': int(session_time.timestamp()) - 60,
+                        'time': int(session_time.timestamp()),
                         'company': company,
                         'plan': plan
                     }
@@ -259,15 +266,17 @@ def generate_sample_events(num_users: int = 20, days_back: int = 30) -> List[Dic
                 # Feature usage (2-8 per session)
                 for _ in range(random.randint(2, 8)):
                     feature = random.choice(features)
+                    # Stay within the session window (max 1 hour after login)
+                    feature_time = min(
+                        int(session_time.timestamp()) + random.randint(60, 3600),
+                        int(end_limit.timestamp())
+                    )
                     events.append({
                         'event': 'Feature Used',
                         'properties': {
                             'distinct_id': user_id,
                             '$insert_id': uuid.uuid4().hex,
-                            'time': min(
-                                int(session_time.timestamp()) + random.randint(60, 3600),
-                                int((datetime.now() - timedelta(hours=2)).timestamp())
-                            ),
+                            'time': feature_time,
                             'feature_name': feature,
                             'company': company,
                             'plan': plan,
@@ -279,13 +288,17 @@ def generate_sample_events(num_users: int = 20, days_back: int = 30) -> List[Dic
 
         # Occasional billing events
         if random.random() > 0.5:
-            billing_date = signup_date + timedelta(days=15)
+            # Cap billing date to yesterday
+            billing_date = min(
+                signup_date_safe + timedelta(days=15),
+                end_limit
+            )
             events.append({
                 'event': 'Subscription Created',
                 'properties': {
                     'distinct_id': user_id,
                     '$insert_id': uuid.uuid4().hex,
-                    'time': int(billing_date.timestamp()) - 60,
+                    'time': int(billing_date.timestamp()),
                     'company': company,
                     'plan': plan,
                     'amount': {'starter': 29, 'professional': 99, 'enterprise': 299}[plan],

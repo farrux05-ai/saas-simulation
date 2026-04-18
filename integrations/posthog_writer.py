@@ -294,7 +294,10 @@ def generate_sample_posthog_events(num_users: int = 25, days_back: int = 30) -> 
 
         # Activity over time
         current_date = signup_date + timedelta(days=1)
-        while current_date < datetime.now():
+        # Use a 10-minute safe buffer to avoid "time in the future" errors
+        now_limit = datetime.now() - timedelta(minutes=10)
+
+        while current_date < now_limit:
             # Random activity (not every day)
             if random.random() < 0.6:  # 60% chance of activity each day
                 sessions_today = random.randint(1, 5)

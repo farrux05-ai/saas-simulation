@@ -67,7 +67,6 @@ class RevOpsDataWriter:
             logger.info(f"  - Companies:  {len(result['companies'])}")
             logger.info(f"  - Deals:      {len(result['deals'])}")
             logger.info(f"  - Advanced:   {result['deals_advanced']}")
-            logger.info(f"  - Activities: {sum(result['activities'].values())} (calls={result['activities']['calls']}, meetings={result['activities']['meetings']}, emails={result['activities']['emails']})")
             logger.info(f"  - Errors:     {len(result['errors'])}")
 
             return result
