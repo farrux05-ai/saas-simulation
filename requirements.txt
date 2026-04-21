@@ -9,7 +9,7 @@ supabase>=2.0.0
 # Utilities
 python-dateutil>=2.8.2
 
-# Optional: Data processing (for future warehouse integration)
+# Optional: Data processing (for warehouse integration)
 pandas>=2.0.0
 sqlalchemy>=2.0.0
 psycopg2-binary>=2.9.0
@@ -21,7 +21,7 @@ duckdb>=0.9.0
 colorama>=0.4.6
 tqdm>=4.66.0
 
-# Development dependencies (optional)
+# Development dependencies
 pytest>=7.4.0
 pytest-cov>=4.1.0
 black>=23.0.0

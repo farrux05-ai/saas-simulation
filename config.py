@@ -1,6 +1,15 @@
 """
 Configuration management for RevOps Data Ingestion Pipeline
 Loads API keys and configuration from environment variables
+
+Stack (A-series B2B SaaS Revenue Engine):
+  - Meta Ads     → Demand generation / paid marketing
+  - HubSpot      → CRM (contacts, companies, deals)
+  - Stripe       → Billing & revenue (subscriptions, invoices)
+  - PostHog      → Product analytics (sessions, features, onboarding)
+  - Freshdesk    → Customer support (tickets)
+  - Supabase     → Product database + data warehouse layer
+  - Call Transcripts → Sales intelligence (written to Supabase)
 """
 
 import os
@@ -42,15 +51,6 @@ class SupabaseConfig:
     url: str
     service_key: str
     anon_key: Optional[str] = None
-
-
-@dataclass
-class MixpanelConfig:
-    """Mixpanel API Configuration"""
-    project_token: str
-    api_secret: str
-    service_account_username: Optional[str] = None
-    service_account_password: Optional[str] = None
 
 
 @dataclass
@@ -107,17 +107,7 @@ class Config:
                 anon_key=os.getenv('SUPABASE_ANON_KEY')
             )
 
-        # Mixpanel
-        self.mixpanel: Optional[MixpanelConfig] = None
-        if os.getenv('MIXPANEL_PROJECT_TOKEN') and os.getenv('MIXPANEL_API_SECRET'):
-            self.mixpanel = MixpanelConfig(
-                project_token=os.getenv('MIXPANEL_PROJECT_TOKEN'),
-                api_secret=os.getenv('MIXPANEL_API_SECRET'),
-                service_account_username=os.getenv('MIXPANEL_SERVICE_ACCOUNT_USERNAME'),
-                service_account_password=os.getenv('MIXPANEL_SERVICE_ACCOUNT_PASSWORD')
-            )
-
-        # PostHog
+        # PostHog (product analytics — unique session, onboarding, feature-depth data)
         self.posthog: Optional[PostHogConfig] = None
         if os.getenv('POSTHOG_API_KEY'):
             self.posthog = PostHogConfig(
@@ -146,7 +136,7 @@ class Config:
         return getattr(self, service.lower(), None) is not None
 
     def get_configured_services(self) -> list:
-        """Get list of configured services"""
+        """Get list of configured services in funnel order"""
         services = []
         if self.meta_ads:
             services.append('meta_ads')
@@ -154,14 +144,14 @@ class Config:
             services.append('hubspot')
         if self.stripe:
             services.append('stripe')
-        if self.supabase:
-            services.append('supabase')
-        if self.mixpanel:
-            services.append('mixpanel')
         if self.posthog:
             services.append('posthog')
         if self.freshdesk:
             services.append('freshdesk')
+        if self.supabase:
+            services.append('supabase')
+            # call_transcripts depends on supabase being configured
+            services.append('call_transcripts')
         return services
 
 

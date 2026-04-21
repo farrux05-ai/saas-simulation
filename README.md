@@ -1,85 +1,226 @@
-# RevOps Data Writer 🚀
+# A-Series Revenue Engine Simulator 🚀
 
-[![Production Ready](https://img.shields.io/badge/status-production--ready-success)](https://github.com/farrux05-ai/saas-simulation)
+[![Status](https://img.shields.io/badge/status-production--ready-success)](https://github.com/farrux05-ai/saas-simulation)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A professional-grade **B2B SaaS Data Ingestion Pipeline**. This tool populates your Modern Data Stack (MDS) sandbox accounts with high-fidelity, integrated test data covering the full customer lifecycle: **Marketing → Sales → Finance → Product Analytics → Support**.
+A professional-grade **B2B SaaS Revenue Engine Simulator** built for Analytics Engineers
+who help A-series startups make data-driven decisions or prepare for their B-series raise.
+
+This tool populates every layer of a real A-series tech stack with high-fidelity,
+cross-referenced sandbox data — from the first paid ad click to the closed deal call transcript.
 
 ---
 
-## 💎 Professional Features
+## 🏗️ Architecture — 7-Layer Revenue Funnel
 
-This isn't just a mock data generator; it’s a **System Simulator** designed for data engineers and analysts:
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│               A-SERIES REVENUE ENGINE (7 layers)                    │
+├────┬────────────────────┬──────────────────────────────────────────┤
+│ #  │ Layer              │ Platform           │ What's simulated      │
+├────┼────────────────────┼────────────────────┼───────────────────────┤
+│ 1  │ 🎯 Marketing       │ Meta Ads           │ Lead & conversion events│
+│ 2  │ 📋 CRM             │ HubSpot            │ Contacts, companies, deals│
+│ 3  │ 💳 Billing         │ Stripe             │ Subscriptions + 12-mo invoices│
+│ 4  │ 📊 Product         │ PostHog            │ Sessions, onboarding, features│
+│ 5  │ 🎫 Support         │ Freshdesk          │ Tickets vs subscription health│
+│ 6  │ 🗄️  Database       │ Supabase           │ App DB + dim_date (DWH-ready)│
+│ 7  │ 📞 Sales Intel     │ Supabase           │ Call transcripts (Gong-style)│
+└────┴────────────────────┴────────────────────┴───────────────────────┘
+```
 
-*   **💳 Financial High-Fidelity (Stripe)**: Generates **12 months of historical invoices** per subscription. Perfect for testing MRR Waterfall models, churn analytics, and billing cohort analysis.
-*   **📅 Data Warehouse Built-ins (Supabase)**: Automatically populates a full `dim_date` (Calendar dimension) table. Ready-to-join for all your time-series dbt models.
-*   **🛡️ Smart Clock-Drift Protection (Analytics)**: Implementations for Mixpanel and PostHog include automated timestamp buffers to prevent "Future Time" API rejection—a common pitfall in data simulation.
-*   **🔄 SCD Type 2 Ready (HubSpot)**: Simulates deal progression and company status updates on every run, allowing you to stress-test your **dbt snapshots** and historical lineage.
-*   **🎭 Full-Funnel Attribution**: Simulates marketing touchpoints (anonymous Page Views, Demo Requests) *before* a user exists in the CRM, creating a realistic Join-key for attribution modeling.
+> **Why this stack?** This mirrors what real A-series B2B SaaS companies use.
+> Every tool was chosen based on adoption data — not "cool factor."
 
 ---
 
-## 🎯 Use Cases
+## 🔑 Stack Decisions (with rationale)
 
-1.  **Modern Data Stack Practice**: Connect Fivetran, Airbyte, or Meltano to professional-grade source data.
-2.  **dbt Analytics Engineering**: Build production-level models for **MRR**, **LTV**, **CAC**, and **Funnel Conversion**.
-3.  **Visualization Dashboards**: Create stunning Looker, Sigma, or Streamlit dashboards with data that actually "makes sense."
+| Tool | Decision | Reason |
+|------|----------|--------|
+| **HubSpot** | ✅ Kept | Standard CRM at A-series (Salesforce comes at B-series when ACV > $30k) |
+| **Stripe** | ✅ Kept | Default billing for SaaS; generates richest revenue time-series data |
+| **PostHog** | ✅ Kept | Open-source friendly, unique session/onboarding/feature-depth events not in Supabase |
+| **Freshdesk** | ✅ Kept | Support layer for health scoring (ticket volume vs MRR) |
+| **Supabase** | ✅ Kept | Product DB + warehouse (dim_date, SCD-ready, dbt-compatible) |
+| **Meta Ads** | ✅ Kept | Demand generation + attribution layer |
+| **Call Transcripts** | ✅ New | The "why we won/lost" layer — missing from most RevOps setups |
+| **Mixpanel** | ❌ Removed | 80% overlap with Supabase events; PostHog covers unique analytics needs |
+| **Salesforce** | ❌ Not added | A-series standard is HubSpot; Salesforce is a B-series migration signal |
 
 ---
 
-## 🛠️ Setup & Execution
+## 💡 What Makes This Different
+
+### 1. Cross-Referenced Data (Layer 2 → Layer 7)
+HubSpot deal IDs are captured during the CRM write and injected into call transcript
+records — so you can do real attribution analysis: `call outcome → deal closed?`
+
+### 2. Sales Intelligence Layer (New)
+Most RevOps pipelines stop at CRM + Stripe. This simulator adds a `call_transcripts`
+table to Supabase with structured fields extracted from synthetic transcripts:
+
+```
+call_type       → discovery | demo | follow_up | negotiation | closing
+outcome         → moved_to_demo | closed_won | stalled | budget_concern
+objection_raised→ "pricing is too high" | "not the right time" ...
+buying_signal   → "can we talk enterprise pricing?" | "how fast can we start?" ...
+hubspot_deal_id → cross-reference to CRM deal
+transcript      → full synthetic conversation
+```
+
+### 3. Warehouse-Ready from Day 1
+Supabase includes a full `dim_date` calendar dimension — every time-series
+dbt model can join it without extra setup.
+
+### 4. SCD Type 2 Ready
+HubSpot deal progressions and Supabase company status updates generate
+real deltas on every run — perfect for testing dbt snapshots.
+
+---
+
+## 🛠️ Setup
 
 ### 1. Initialize Environment
 ```bash
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. Configuration (`.env`)
-Create a `.env` file based on `.env.example`. You will need access tokens for:
-- HubSpot (Private App)
-- Stripe (Test Secret Key)
-- Supabase (Project URL & Service Key)
-- Mixpanel/PostHog (Project Tokens)
-- Freshdesk (API Key)
+### 2. Configure `.env`
+Copy `.env.example` and fill in your sandbox credentials:
 
-### 3. Run the Pipeline
 ```bash
-# Populate all configured services
+cp .env.example .env
+```
+
+Required variables:
+
+| Service | Variables |
+|---------|-----------|
+| HubSpot | `HUBSPOT_ACCESS_TOKEN`, `HUBSPOT_PORTAL_ID` |
+| Stripe | `STRIPE_SECRET_KEY` |
+| Supabase | `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` |
+| PostHog | `POSTHOG_API_KEY` |
+| Freshdesk | `FRESHDESK_DOMAIN`, `FRESHDESK_API_KEY` |
+| Meta Ads | `META_ACCESS_TOKEN`, `META_ACCOUNT_ID` (+ pixel for events) |
+
+### 3. Supabase — First-Run Table Setup
+Run the DDL below once in your **Supabase SQL Editor** before the first run:
+
+```sql
+-- Core tables (companies, users, events, subscriptions, dim_date)
+-- Defined in integrations/supabase_writer.py → create_tables()
+
+-- Sales intelligence layer (Layer 7)
+CREATE TABLE IF NOT EXISTS call_transcripts (
+    id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    call_type         TEXT NOT NULL,
+    deal_stage        TEXT,
+    outcome           TEXT,
+    rep_name          TEXT NOT NULL,
+    rep_email         TEXT,
+    prospect_company  TEXT NOT NULL,
+    duration_minutes  INTEGER,
+    call_date         TIMESTAMP NOT NULL,
+    transcript        TEXT,
+    objection_raised  TEXT,
+    buying_signal     TEXT,
+    next_step         TEXT,
+    hubspot_deal_id   TEXT,
+    created_at        TIMESTAMP DEFAULT NOW()
+);
+```
+
+---
+
+## ▶️ Running the Engine
+
+```bash
+# Run the full 7-layer Revenue Engine
 python main_revops_writer.py --all
 
-# Target specific services
-python main_revops_writer.py --services stripe supabase mixpanel
+# Run specific layers only
+python main_revops_writer.py --services hubspot stripe posthog
+
+# Include Meta Ads conversion events (requires pixel ID)
+python main_revops_writer.py --all --meta-pixel-id YOUR_PIXEL_ID
+
+# Check which layers are configured
+python main_revops_writer.py --check-config
+
+# Simulate without writing (dry run)
+python main_revops_writer.py --dry-run
+```
+
+Expected output:
+```
+✓ META ADS        → 50 conversion events
+✓ HUBSPOT         → 15 contacts, 8 companies, 12 deals
+✓ STRIPE          → 15 customers, subscriptions, invoices
+✓ POSTHOG         → sessions, onboarding, feature events
+✓ FRESHDESK       → 25 support tickets
+✓ SUPABASE        → 40 companies, users, events, dim_date
+✓ CALL_TRANSCRIPTS→ 30 discovery/demo/closing call records
 ```
 
 ---
 
 ## 📊 Data Schema Reference
 
-| Platform | Domain | Simulation Depth |
-| :--- | :--- | :--- |
-| **HubSpot** | CRM | Contacts, Companies, Deals with Stage History & SCD Deltas. |
-| **Stripe** | Billing | Customers, Subscriptions, and **Historical Invoices (1yr back)**. |
-| **Supabase** | Warehouse | App Database state + **Professional Date Dimension (`dim_date`)**. |
-| **Mixpanel** | Product | Full behavioral funnel (Marketing -> Signup -> Feature Engagement). |
-| **PostHog** | Product | Heatmap-ready event streams with user identification logic. |
-| **Freshdesk**| Support | Ticket volume correlated with subscription health scores. |
+| Platform | Layer | Key Tables / Objects |
+|----------|-------|----------------------|
+| **Meta Ads** | Marketing | Conversion events (Lead, ViewContent, Purchase) |
+| **HubSpot** | CRM | Contacts, Companies, Deals (with stage history) |
+| **Stripe** | Billing | Customers, Subscriptions, Invoices (12-mo history) |
+| **PostHog** | Product | Events: Session Started, Onboarding Completed, Feature Used, Report Generated |
+| **Freshdesk** | Support | Tickets with priority, category, and status |
+| **Supabase** | Database | `companies`, `users`, `events`, `subscriptions`, `dim_date` |
+| **Supabase** | Sales Intel | `call_transcripts` (Layer 7 — cross-ref'd with HubSpot) |
 
 ---
 
-## ⚠️ Important Implementation Notes
+## 🔄 GitHub Actions — Automated Data Growth
 
-### Supabase Setup
-The `dim_date` and core tables require initial DDL. You can find the required SQL script in the `supabase_setup.sql` artifact or in the `integrations/supabase_writer.py` comments.
+The included workflow (`.github/workflows/revops_ingest.yml`) runs the engine
+daily, growing your sandbox data ~1% per day — simulating a real SaaS business
+without manual intervention.
 
-### GitHub Actions
-Automate your data growth by enabling the included workflow in `.github/workflows/revops_ingest.yml`. This ensures your warehouse "grows" 1% every day, simulating a real SaaS business.
+---
+
+## 📁 Project Structure
+
+```
+ingestion_practice/
+├── main_revops_writer.py          # Main orchestrator (7-layer engine)
+├── config.py                      # Platform configuration (env-based)
+├── requirements.txt
+├── .env                           # Your sandbox credentials (never commit)
+├── .env.example                   # Template for onboarding
+├── integrations/
+│   ├── meta_ads_writer.py         # Layer 1 — Marketing
+│   ├── hubspot_writer.py          # Layer 2 — CRM
+│   ├── stripe_writer.py           # Layer 3 — Billing
+│   ├── posthog_writer.py          # Layer 4 — Product Analytics
+│   ├── freshdesk_writer.py        # Layer 5 — Support
+│   ├── supabase_writer.py         # Layer 6 — Database / Warehouse
+│   └── call_transcript_writer.py  # Layer 7 — Sales Intelligence (NEW)
+└── utils/
+    └── logger.py
+```
 
 ---
 
 > [!IMPORTANT]
-> **Privacy Warning**: Only use this tool in **Sandbox/Test** environments. This script performs write operations that could clutter production dashboards if misconfigured.
+> **Sandbox only.** All integrations use test/sandbox API keys. Never run this
+> against production credentials — write operations will appear in live dashboards.
 
-**Happy Data Engineering! 🚀**
+> [!NOTE]
+> **Analytics Engineering context.** This simulator is designed for Analytics
+> Engineers helping A-series startups build their Revenue Engine before a B-series
+> raise. Each tool in the stack was chosen based on real adoption patterns at the
+> $2M–$15M ARR stage, not convention.
+
+**Built for Revenue. Designed for Scale. 🚀**
