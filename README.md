@@ -21,12 +21,12 @@ Imagine **ScaleFlow**, a promising A-Series SaaS. They spend $50k/mo on Meta Ads
 *   **Product says:** "Users are logging in, so they must be active." (Recorded in PostHog).
 *   **Support says:** "Ticket volume is up." (Recorded in Freshdesk).
 
-**The Solution (This Engine):**
-By orchestrating this 7-layer data pipeline, an Analytics Engineer can build a `Customer 360` view that reveals the *real* story:
-1.  **Sales Intelligence (Layer 7):** Call transcripts reveal the deal wasn't lost on price; it was stalled because ScaleFlow lacks a **Jira Integration**.
-2.  **Product / Support Correlation (Layers 4 & 5):** The churnspike isn't random. PostHog shows users hitting an `export_failed_error`, and Freshdesk shows urgent tickets about "Reports timing out."
+**The Solution (This Engine's Data Generation):**
+By orchestrating this 7-layer data pipeline, an Analytics Engineer sends perfectly correlated data to their Warehouse (e.g., BigQuery, Snowflake) to reveal the *real* story:
+1.  **Sales Intelligence (Layer 7):** Call transcripts explicitly contain objections like "We strictly need a 2-way Jira integration". The Python generation engine correlates these specific keywords to force `closed_lost` or `stalled` outcomes in the dataset.
+2.  **Product / Support Correlation (Layers 4 & 5):** The churn spike isn't random. The PostHog simulator generates specific `export_failed_error` events with high `load_time_ms`. Simultaneously, the Freshdesk simulator generates urgent tickets with subjects like "URGENT: Report generation timing out" for those same profiles.
 
-*This script doesn't just generate random data. It generates these exact correlating business patterns across 7 different platforms so you can practice building the queries that solve them.*
+*This script doesn't just generate random data. It generates exact, correlating business patterns across 7 different platform APIs so you can practice building the Modern Data Stack and the queries that solve the gaps.*
 
 ---
 
@@ -226,8 +226,7 @@ ingestion_practice/
 │   ├── supabase_writer.py         # Layer 6 — Database / Warehouse
 │   └── call_transcript_writer.py  # Layer 7 — Sales Intelligence
 └── utils/
-    ├── logger.py
-    └── customer_360_view.sql      # Example SQL showing how to join the 7 layers
+    └── logger.py
 ```
 
 ---
