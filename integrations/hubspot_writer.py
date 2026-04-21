@@ -210,7 +210,7 @@ def generate_sample_companies(
                 'country':           'United States',
                 'lifecyclestage':    _STAGE_MAP.get(p.lifecycle_stage, 'lead'),
                 'type':              'PARTNER' if p.lifecycle_stage in (STAGE_AT_RISK, 'active', 'won') else 'PROSPECT',
-                'industry':          p.industry,
+                'industry':          'COMPUTER_SOFTWARE',
                 '_persona_ref':      p,   # internal reference — stripped before API call
             })
     else:
@@ -221,7 +221,7 @@ def generate_sample_companies(
             'FusionSoft', 'VelocityData', 'PrismTech', 'NexusCloud', 'ApexSolutions',
             'SynergyTech', 'CatalystSoftware'
         ]
-        industries = ['Other', 'Technology', 'Software', 'Retail', 'Healthcare', 'Manufacturing', 'Finance']
+        industries = ['COMPUTER_SOFTWARE', 'RETAIL', 'HOSPITAL_HEALTH_CARE', 'MANUFACTURING', 'FINANCIAL_SERVICES']
         for i in range(count):
             company_name = random.choice(company_names) + f" {random.randint(1, 100)}"
             companies.append({
