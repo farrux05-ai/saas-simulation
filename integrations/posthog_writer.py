@@ -211,10 +211,10 @@ def generate_sample_posthog_events(
     }
 
     # ------------------------------------------------------------------
-    # FIXED PERSONA EVENTS (context-driven, correlated signal)
+    # PERSONA EVENTS (context-driven, correlated signal)
     # ------------------------------------------------------------------
     if context:
-        for persona in context.fixed_personas:
+        for persona in context.all_personas:
             uid = f"user_{persona.domain.replace('.', '_')}"  # stable ID per company
             user_properties.append({
                 'distinct_id': uid,
@@ -294,206 +294,241 @@ def generate_sample_posthog_events(
                             'timestamp': ts})
                 continue
 
+            # Fallback for random personas (organic growth)
+            if persona not in context.fixed_personas:
+                # Generate standard generic activity for random context personas
+                signup_date = datetime.now() - timedelta(days=random.randint(1, days_back))
+                
+                # Update signup date in property
+                user_properties[-1]['properties']['signup_date'] = signup_date.isoformat()
+                
+                marketing_date = signup_date - timedelta(days=random.randint(1, 7))
+                
+                events.append({
+                    'event': 'Page Viewed', 'distinct_id': uid,
+                    'properties': {'path': '/', 'company': persona.company_name, 'email': persona.contact_email},
+                    'timestamp': marketing_date.isoformat()
+                })
+                events.append({
+                    'event': 'User Signed Up', 'distinct_id': uid,
+                    'properties': {'email': persona.contact_email, 'company': persona.company_name, 'plan': persona.plan_name},
+                    'timestamp': signup_date.isoformat()
+                })
+                
+                current_date = signup_date + timedelta(days=1)
+                now_limit = datetime.now() - timedelta(minutes=10)
+                
+                while current_date < now_limit:
+                    if random.random() < 0.3:  # 30% chance of activity
+                        events.append({
+                            'event': 'Session Started', 'distinct_id': uid,
+                            'properties': {'company': persona.company_name},
+                            'timestamp': current_date.isoformat()
+                        })
+                    current_date += timedelta(days=1)
+
+
     # ------------------------------------------------------------------
-    # RANDOM EXTRA USERS (generic activity)
+    # FALLBACK RANDOM USERS (if no context)
     # ------------------------------------------------------------------
-    _random_companies = ['NexGen Inc', 'Helix Analytics', 'Orion SaaS', 'Vectora AI', 'Forge Systems', 'ScaleUp Ltd']
+    if not context:
+        _random_companies = ['NexGen Inc', 'Helix Analytics', 'Orion SaaS', 'Vectora AI']
+        
+        for user_idx in range(num_users):
+            user_id = f"user_{uuid.uuid4()}"
+            email   = f"user{user_idx}@example{user_idx % 5}.com"
+            company = random.choice(_random_companies)
+            plan    = random.choice(plans)
+            role    = random.choice(roles)
 
-    for user_idx in range(num_users):
-        user_id = f"user_{uuid.uuid4()}"
-        email   = f"user{user_idx}@example{user_idx % 5}.com"
-        company = random.choice(_random_companies)
-        plan    = random.choice(plans)
-        role    = random.choice(roles)
+            signup_date = datetime.now() - timedelta(days=random.randint(1, days_back))
 
-        signup_date = datetime.now() - timedelta(days=random.randint(1, days_back))
-
-        # User properties
-        user_properties.append({
-            'distinct_id': user_id,
-            'properties': {
-                'email': email,
-                'name': f'User {user_idx}',
-                'company': company,
-                'plan': plan,
-                'role': role,
-                'signup_date': signup_date.isoformat(),
-                'team_size': random.randint(1, 50),
-                'industry': random.choice(['Technology', 'Finance', 'Healthcare', 'Retail', 'Manufacturing']),
-                'country': random.choice(['US', 'UK', 'CA', 'AU', 'DE'])
-            }
-        })
-
-        # --- MARKETING SIGNALS (Pre-Signup behavior) ---
-        marketing_date = signup_date - timedelta(days=random.randint(1, 7))
-
-        # 1. Page Viewed (Discovery)
-        events.append({
-            'event': 'Page Viewed',
-            'distinct_id': user_id,
-            'properties': {
-                'path': '/',
-                'source': random.choice(['Google', 'LinkedIn', 'Direct', 'Meta Ads']),
-                'company': company,
-                'email': email
-            },
-            'timestamp': marketing_date.isoformat()
-        })
-
-        # 2. Pricing Page Viewed (Interest)
-        events.append({
-            'event': 'Pricing Page Viewed',
-            'distinct_id': user_id,
-            'properties': {
-                'plan_seen': plan,
-                'company': company,
-                'email': email
-            },
-            'timestamp': (marketing_date + timedelta(hours=2)).isoformat()
-        })
-
-        # 3. Demo Requested (Intent - The MQL Signal)
-        if random.random() > 0.3:
-            events.append({
-                'event': 'Demo Requested',
+            # User properties
+            user_properties.append({
                 'distinct_id': user_id,
                 'properties': {
+                    'email': email,
+                    'name': f'User {user_idx}',
+                    'company': company,
+                    'plan': plan,
+                    'role': role,
+                    'signup_date': signup_date.isoformat(),
+                    'team_size': random.randint(1, 50),
+                    'industry': random.choice(['Technology', 'Finance', 'Healthcare', 'Retail', 'Manufacturing']),
+                    'country': random.choice(['US', 'UK', 'CA', 'AU', 'DE'])
+                }
+            })
+
+            # --- MARKETING SIGNALS (Pre-Signup behavior) ---
+            marketing_date = signup_date - timedelta(days=random.randint(1, 7))
+
+            # 1. Page Viewed (Discovery)
+            events.append({
+                'event': 'Page Viewed',
+                'distinct_id': user_id,
+                'properties': {
+                    'path': '/',
+                    'source': random.choice(['Google', 'LinkedIn', 'Direct', 'Meta Ads']),
                     'company': company,
                     'email': email
                 },
-                'timestamp': (marketing_date + timedelta(days=1)).isoformat()
+                'timestamp': marketing_date.isoformat()
             })
 
-        # --- PRODUCT DATA (The Signup) ---
-        # User Signed Up event
-        events.append({
-            'event': 'User Signed Up',
-            'distinct_id': user_id,
-            'properties': {
-                'email': email,
-                'company': company,
-                'plan': plan,
-                'signup_source': random.choice(['organic', 'paid_ad', 'referral', 'direct']),
-                'trial_days': 14 if plan != 'free' else 0
-            },
-            'timestamp': signup_date.isoformat()
-        })
-
-        # Onboarding events
-        if random.random() > 0.3:  # 70% complete onboarding
-            onboarding_time = signup_date + timedelta(minutes=random.randint(5, 60))
+            # 2. Pricing Page Viewed (Interest)
             events.append({
-                'event': 'Onboarding Completed',
+                'event': 'Pricing Page Viewed',
                 'distinct_id': user_id,
                 'properties': {
-                    'steps_completed': random.randint(3, 7),
-                    'time_taken_minutes': random.randint(5, 60),
-                    'skipped_steps': random.randint(0, 2)
+                    'plan_seen': plan,
+                    'company': company,
+                    'email': email
                 },
-                'timestamp': onboarding_time.isoformat()
+                'timestamp': (marketing_date + timedelta(hours=2)).isoformat()
             })
 
-        # Activity over time
-        current_date = signup_date + timedelta(days=1)
-        # Use a 10-minute safe buffer to avoid "time in the future" errors
-        now_limit = datetime.now() - timedelta(minutes=10)
+            # 3. Demo Requested (Intent - The MQL Signal)
+            if random.random() > 0.3:
+                events.append({
+                    'event': 'Demo Requested',
+                    'distinct_id': user_id,
+                    'properties': {
+                        'company': company,
+                        'email': email
+                    },
+                    'timestamp': (marketing_date + timedelta(days=1)).isoformat()
+                })
 
-        while current_date < now_limit:
-            # Random activity (not every day)
-            if random.random() < 0.6:  # 60% chance of activity each day
-                sessions_today = random.randint(1, 5)
+            # --- PRODUCT DATA (The Signup) ---
+            # User Signed Up event
+            events.append({
+                'event': 'User Signed Up',
+                'distinct_id': user_id,
+                'properties': {
+                    'email': email,
+                    'company': company,
+                    'plan': plan,
+                    'signup_source': random.choice(['organic', 'paid_ad', 'referral', 'direct']),
+                    'trial_days': 14 if plan != 'free' else 0
+                },
+                'timestamp': signup_date.isoformat()
+            })
 
-                for session in range(sessions_today):
-                    session_start = current_date + timedelta(
-                        hours=random.randint(8, 20),
-                        minutes=random.randint(0, 59)
-                    )
+            # Onboarding events
+            if random.random() > 0.3:  # 70% complete onboarding
+                onboarding_time = signup_date + timedelta(minutes=random.randint(5, 60))
+                events.append({
+                    'event': 'Onboarding Completed',
+                    'distinct_id': user_id,
+                    'properties': {
+                        'steps_completed': random.randint(3, 7),
+                        'time_taken_minutes': random.randint(5, 60),
+                        'skipped_steps': random.randint(0, 2)
+                    },
+                    'timestamp': onboarding_time.isoformat()
+                })
 
-                    # Session start
-                    events.append({
-                        'event': 'Session Started',
-                        'distinct_id': user_id,
-                        'properties': {
-                            'company': company,
-                            'plan': plan,
-                            'device': random.choice(['desktop', 'mobile', 'tablet']),
-                            'browser': random.choice(['Chrome', 'Firefox', 'Safari', 'Edge']),
-                            'os': random.choice(['Windows', 'macOS', 'Linux', 'iOS', 'Android'])
-                        },
-                        'timestamp': session_start.isoformat()
-                    })
+            # Activity over time
+            current_date = signup_date + timedelta(days=1)
+            # Use a 10-minute safe buffer to avoid "time in the future" errors
+            now_limit = datetime.now() - timedelta(minutes=10)
 
-                    # Feature usage during session
-                    num_actions = random.randint(3, 15)
-                    for action_idx in range(num_actions):
-                        action_time = session_start + timedelta(minutes=action_idx * 2)
+            while current_date < now_limit:
+                # Random activity (not every day)
+                if random.random() < 0.6:  # 60% chance of activity each day
+                    sessions_today = random.randint(1, 5)
 
-                        # Pick random feature category and action
-                        category = random.choice(list(features.keys()))
-                        action = random.choice(features[category])
+                    for session in range(sessions_today):
+                        session_start = current_date + timedelta(
+                            hours=random.randint(8, 20),
+                            minutes=random.randint(0, 59)
+                        )
 
+                        # Session start
                         events.append({
-                            'event': 'Feature Used',
+                            'event': 'Session Started',
                             'distinct_id': user_id,
                             'properties': {
-                                'feature_category': category,
-                                'feature_action': action,
-                                'feature_name': f"{category}_{action}",
                                 'company': company,
                                 'plan': plan,
-                                'session_duration_minutes': random.randint(5, 45),
-                                # Pattern injection: If action is export_failed, note the duration was long
-                                'load_time_ms': random.randint(5000, 15000) if action == 'export_failed_error' else random.randint(100, 1200)
+                                'device': random.choice(['desktop', 'mobile', 'tablet']),
+                                'browser': random.choice(['Chrome', 'Firefox', 'Safari', 'Edge']),
+                                'os': random.choice(['Windows', 'macOS', 'Linux', 'iOS', 'Android'])
                             },
-                            'timestamp': action_time.isoformat()
+                            'timestamp': session_start.isoformat()
                         })
 
-                    # Occasional specific events
-                    if random.random() > 0.7:
-                        events.append({
-                            'event': 'Report Generated',
-                            'distinct_id': user_id,
-                            'properties': {
-                                'report_type': random.choice(['revenue', 'users', 'engagement', 'retention']),
-                                'export_format': random.choice(['pdf', 'csv', 'excel']),
-                                'date_range': random.choice(['7d', '30d', '90d', 'custom']),
-                                'filters_applied': random.randint(0, 5)
-                            },
-                            'timestamp': (session_start + timedelta(minutes=random.randint(10, 30))).isoformat()
-                        })
+                        # Feature usage during session
+                        num_actions = random.randint(3, 15)
+                        for action_idx in range(num_actions):
+                            action_time = session_start + timedelta(minutes=action_idx * 2)
 
-            current_date += timedelta(days=1)
+                            # Pick random feature category and action
+                            category = random.choice(list(features.keys()))
+                            action = random.choice(features[category])
 
-        # Subscription events
-        if plan != 'free' and random.random() > 0.4:
-            sub_date = signup_date + timedelta(days=15)
-            events.append({
-                'event': 'Subscription Started',
-                'distinct_id': user_id,
-                'properties': {
-                    'plan': plan,
-                    'billing_interval': random.choice(['monthly', 'annual']),
-                    'amount': {'starter': 49, 'professional': 149, 'enterprise': 499}[plan],
-                    'currency': 'USD'
-                },
-                'timestamp': sub_date.isoformat()
-            })
+                            events.append({
+                                'event': 'Feature Used',
+                                'distinct_id': user_id,
+                                'properties': {
+                                    'feature_category': category,
+                                    'feature_action': action,
+                                    'feature_name': f"{category}_{action}",
+                                    'company': company,
+                                    'plan': plan,
+                                    'session_duration_minutes': random.randint(5, 45),
+                                    # Pattern injection: If action is export_failed, note the duration was long
+                                    'load_time_ms': random.randint(5000, 15000) if action == 'export_failed_error' else random.randint(100, 1200)
+                                },
+                                'timestamp': action_time.isoformat()
+                            })
 
-        # Occasional support interactions
-        if random.random() > 0.7:
-            support_date = signup_date + timedelta(days=random.randint(1, days_back))
-            events.append({
-                'event': 'Support Ticket Created',
-                'distinct_id': user_id,
-                'properties': {
-                    'category': random.choice(['technical', 'billing', 'feature_request', 'question']),
-                    'priority': random.choice(['low', 'medium', 'high']),
-                    'channel': random.choice(['email', 'chat', 'phone'])
-                },
-                'timestamp': support_date.isoformat()
-            })
+                        # Occasional specific events
+                        if random.random() > 0.7:
+                            events.append({
+                                'event': 'Report Generated',
+                                'distinct_id': user_id,
+                                'properties': {
+                                    'report_type': random.choice(['revenue', 'users', 'engagement', 'retention']),
+                                    'export_format': random.choice(['pdf', 'csv', 'excel']),
+                                    'date_range': random.choice(['7d', '30d', '90d', 'custom']),
+                                    'filters_applied': random.randint(0, 5)
+                                },
+                                'timestamp': (session_start + timedelta(minutes=random.randint(10, 30))).isoformat()
+                            })
 
-    logger.info(f"Generated {len(events)} PostHog events for {num_users} persona/random users")
+                current_date += timedelta(days=1)
+
+            # Subscription events
+            if plan != 'free' and random.random() > 0.4:
+                sub_date = signup_date + timedelta(days=15)
+                events.append({
+                    'event': 'Subscription Started',
+                    'distinct_id': user_id,
+                    'properties': {
+                        'plan': plan,
+                        'billing_interval': random.choice(['monthly', 'annual']),
+                        'amount': {'starter': 49, 'professional': 149, 'enterprise': 499}[plan],
+                        'currency': 'USD'
+                    },
+                    'timestamp': sub_date.isoformat()
+                })
+
+            # Occasional support interactions
+            if random.random() > 0.7:
+                support_date = signup_date + timedelta(days=random.randint(1, days_back))
+                events.append({
+                    'event': 'Support Ticket Created',
+                    'distinct_id': user_id,
+                    'properties': {
+                        'category': random.choice(['technical', 'billing', 'feature_request', 'question']),
+                        'priority': random.choice(['low', 'medium', 'high']),
+                        'channel': random.choice(['email', 'chat', 'phone'])
+                    },
+                    'timestamp': support_date.isoformat()
+                })
+
+    logger.info(f"Generated {len(events)} PostHog events ({len(context.all_personas) if context else num_users} unique users)")
     return events, user_properties
 
 
