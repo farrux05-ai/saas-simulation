@@ -5,11 +5,14 @@ Creates realistic B2B SaaS customer and payment data for testing/sandbox
 
 import random
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 
 import stripe
 
 from utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from utils.simulation_context import SimulationContext
 
 logger = get_logger(__name__)
 
@@ -329,7 +332,8 @@ class StripeDataWriter:
         self,
         num_customers: int = 10,
         subscription_rate: float = 0.7,
-        trial_rate: float = 0.3
+        trial_rate: float = 0.3,
+        context: Optional['SimulationContext'] = None,
     ) -> Dict:
         """
         Generate a full realistic dataset
@@ -357,38 +361,58 @@ class StripeDataWriter:
             price_ids = self.create_product_and_prices()
             results["price_ids"] = price_ids
 
-            # Create customers
-            for i in range(num_customers):
-                customer = self.create_customer()
+            # Create customers (mixed personas + random if needed)
+            total_needed = num_customers
+            if context:
+                total_needed = max(len(context.all_personas), num_customers)
+
+            for i in range(total_needed):
+                # Use persona if we have one
+                persona = None
+                if context and i < len(context.all_personas):
+                    persona = context.all_personas[i]
+                    customer = self.create_customer(
+                        email=persona.contact_email,
+                        name=persona.contact_name,
+                        company=persona.company_name
+                    )
+                    persona.stripe_customer_id = customer.id
+                else:
+                    customer = self.create_customer()
+
                 results["customers"].append(customer)
 
-                # Decide if customer should have subscription
-                if random.random() < subscription_rate:
-                    # Choose random plan (bias toward lower tiers)
-                    plan_weights = {
-                        "starter": 0.35,
-                        "professional": 0.30,
-                        "business": 0.20,
-                        "enterprise": 0.10,
-                        "starter_annual": 0.03,
-                        "professional_annual": 0.02
-                    }
-                    plan = random.choices(
-                        list(plan_weights.keys()),
-                        weights=list(plan_weights.values())
-                    )[0]
+                # Determine subscription
+                plan = None
+                trial_days = 0
+                has_subscription = False
 
-                    # Trial or not
-                    trial_days = 14 if random.random() < trial_rate else 0
+                if persona:
+                    # Persona-driven billing
+                    if persona.lifecycle_stage in ('active', 'at_risk', 'won'):
+                        has_subscription = True
+                        plan = f"{persona.plan_name}_{persona.billing_cycle}" if persona.billing_cycle == 'annual' else persona.plan_name
+                    elif persona.lifecycle_stage == 'trial':
+                        has_subscription = True
+                        plan = persona.plan_name
+                        trial_days = 14
+                else:
+                    # Random logic
+                    if random.random() < subscription_rate:
+                        has_subscription = True
+                        plan_weights = {
+                            "starter": 0.35, "professional": 0.30, "business": 0.20,
+                            "enterprise": 0.10, "starter_annual": 0.03, "professional_annual": 0.02
+                        }
+                        plan = random.choices(list(plan_weights.keys()), weights=list(plan_weights.values()))[0]
+                        trial_days = 14 if random.random() < trial_rate else 0
 
+                if has_subscription and plan in price_ids:
                     subscription = self.create_subscription(
-                        customer.id,
-                        price_ids[plan],
-                        trial_days=trial_days
+                        customer.id, price_ids[plan], trial_days=trial_days
                     )
                     results["subscriptions"].append(subscription)
 
-                    # Generate invoice history for this subscription
                     plan_price = self.PRICING_PLANS.get(plan, {}).get("price", 99)
                     invoices = self.create_invoice_history(
                         customer_id=customer.id,
@@ -397,8 +421,8 @@ class StripeDataWriter:
                     )
                     results["invoice_history"].extend(invoices)
 
-                # Random chance of one-time payment
-                if random.random() < 0.2:
+                # Random chance of one-time payment for randoms/active
+                if (not persona or persona.lifecycle_stage in ('active', 'won')) and random.random() < 0.2:
                     payment_types = [
                         ("Implementation fee", random.randint(500, 2000)),
                         ("Training session", random.randint(200, 800)),
@@ -429,7 +453,11 @@ class StripeDataWriter:
             raise
 
 
-def write_stripe_data(api_key: str, num_customers: int = 10) -> Dict:
+def write_stripe_data(
+    api_key: str,
+    num_customers: int = 10,
+    context: Optional['SimulationContext'] = None,
+) -> Dict:
     """
     Write realistic B2B SaaS data to Stripe
 
@@ -441,4 +469,4 @@ def write_stripe_data(api_key: str, num_customers: int = 10) -> Dict:
         Dictionary with created data (customers, subscriptions, invoice_history, payments)
     """
     writer = StripeDataWriter(api_key)
-    return writer.generate_realistic_data_set(num_customers=num_customers)
+    return writer.generate_realistic_data_set(num_customers=num_customers, context=context)

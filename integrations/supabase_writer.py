@@ -6,11 +6,14 @@ Populates Supabase with realistic B2B SaaS data for testing
 import random
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, TYPE_CHECKING, Optional
 
 from supabase import Client, create_client
 
 from utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from utils.simulation_context import SimulationContext
 
 logger = get_logger(__name__)
 
@@ -116,12 +119,13 @@ class SupabaseWriter:
         except Exception as e:
             logger.warning(f"Table creation note: {e}")
 
-    def insert_companies(self, count: int = 50) -> List[Dict]:
+    def insert_companies(self, count: int = 50, context: Optional['SimulationContext'] = None) -> List[Dict]:
         """
         Insert sample companies
 
         Args:
             count: Number of companies to create
+            context: Persona definitions
 
         Returns:
             List of created companies
@@ -133,8 +137,35 @@ class SupabaseWriter:
         statuses = ['Active', 'Trial', 'Churned', 'At Risk']
 
         companies = []
-        for i in range(count):
-            company = {
+        
+        # --- FIXED PERSONAS ---
+        if context:
+            for p in context.fixed_personas:
+                # Map specific lifecycle to Supabase status
+                status = 'Active'
+                if p.lifecycle_stage == 'at_risk': status = 'At Risk'
+                elif p.lifecycle_stage == 'stalled': status = 'Trial'
+                elif p.lifecycle_stage == 'churned': status = 'Churned'
+                elif p.lifecycle_stage == 'new_lead': status = 'Trial'
+                
+                companies.append({
+                    'id': str(uuid.uuid4()),
+                    'name': p.company_name,
+                    'domain': p.domain,
+                    'industry': random.choice(industries),
+                    'employee_count': random.choice([10, 25, 50, 100, 250, 500, 1000]),
+                    'annual_revenue': round(random.uniform(100000, 10000000), 2),
+                    'plan_type': p.plan_name.capitalize(),
+                    'mrr': float(p.mrr),
+                    'status': status,
+                    'created_at': (datetime.now() - timedelta(days=90)).isoformat(),
+                    'updated_at': datetime.now().isoformat()
+                })
+        
+        # --- RANDOM EXTRAS ---
+        num_random = max(0, count - len(companies))
+        for i in range(num_random):
+            companies.append({
                 'id': str(uuid.uuid4()),
                 'name': f"Company {i+1} Inc",
                 'domain': f"company{i+1}-{uuid.uuid4().hex[:4]}.com",
@@ -146,8 +177,7 @@ class SupabaseWriter:
                 'status': random.choice(statuses),
                 'created_at': (datetime.now() - timedelta(days=random.randint(1, 730))).isoformat(),
                 'updated_at': datetime.now().isoformat()
-            }
-            companies.append(company)
+            })
 
         try:
             response = self.client.table('companies').insert(companies).execute()
@@ -362,17 +392,18 @@ class SupabaseWriter:
             logger.error(f"Failed to populate dim_date: {e}")
             raise
 
-    def populate_all(self, num_companies: int = 30) -> Dict[str, int]:
+    def populate_all(self, num_companies: int = 50, context: Optional['SimulationContext'] = None) -> Dict[str, int]:
         """
-        Populate all tables with sample data
+        Run full population workflow
 
         Args:
-            num_companies: Number of companies to create
+            num_companies: Number of companies to generate
+            context: Persona context
 
         Returns:
             Dictionary with counts of created records
         """
-        logger.info("Starting full Supabase data population...")
+        logger.info("Starting Supabase data population...")
 
         try:
             # Create tables (structure)
@@ -382,7 +413,7 @@ class SupabaseWriter:
             dim_date_rows = self.insert_dim_date()
 
             # Insert transactional data
-            companies     = self.insert_companies(num_companies)
+            companies     = self.insert_companies(count=num_companies, context=context)
             users         = self.insert_users(companies, users_per_company=5)
             events        = self.insert_events(users, companies, events_per_user=20)
             subscriptions = self.insert_subscriptions(companies)
@@ -466,7 +497,7 @@ class SupabaseWriter:
 
 
 
-def write_supabase_data(url: str, service_key: str, num_companies: int = 30) -> Dict[str, int]:
+def write_supabase_data(url: str, service_key: str, num_companies: int = 30, context: Optional['SimulationContext'] = None) -> Dict[str, int]:
     """
     Main function to write data to Supabase.
     Inserts new records AND updates existing company statuses for snapshot testing.
@@ -475,12 +506,13 @@ def write_supabase_data(url: str, service_key: str, num_companies: int = 30) -> 
         url: Supabase URL
         service_key: Supabase service key
         num_companies: Number of new companies to create each run
+        context: Simulation personas
 
     Returns:
         Summary of created and updated records
     """
     writer = SupabaseWriter(url, service_key)
-    result = writer.populate_all(num_companies)
+    result = writer.populate_all(num_companies, context=context)
 
     # Also update existing statuses to generate snapshot deltas
     updated = writer.update_company_statuses()

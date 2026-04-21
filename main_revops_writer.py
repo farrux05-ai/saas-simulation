@@ -38,6 +38,7 @@ from integrations.posthog_writer import write_posthog_data
 from integrations.stripe_writer import write_stripe_data
 from integrations.supabase_writer import write_supabase_data
 from utils.logger import setup_logger
+from utils.simulation_context import SimulationContext, build_simulation_context
 
 # Setup logger
 logger = setup_logger('revops_writer', log_file='logs/revops_writer.log')
@@ -53,8 +54,8 @@ class RevOpsDataWriter:
         self.config = config
         self.results = {}
         self.errors = {}
-        # Collect HubSpot deal IDs so call_transcripts can reference them
         self._hubspot_deal_ids: List[str] = []
+        self.context: SimulationContext = None  # set in write_all()
 
     # ------------------------------------------------------------------
     # Layer 1 — Marketing
@@ -109,7 +110,8 @@ class RevOpsDataWriter:
                 access_token=self.config.hubspot.access_token,
                 num_contacts=num_contacts,
                 num_companies=num_companies,
-                num_deals=num_deals
+                num_deals=num_deals,
+                context=self.context,
             )
 
             # Capture deal IDs for call transcript cross-referencing
@@ -144,7 +146,8 @@ class RevOpsDataWriter:
 
             result = write_stripe_data(
                 api_key=self.config.stripe.secret_key,
-                num_customers=num_customers
+                num_customers=num_customers,
+                context=self.context,
             )
 
             logger.info(f"✓ Stripe complete:")
@@ -176,7 +179,8 @@ class RevOpsDataWriter:
                 api_key=self.config.posthog.api_key,
                 host=self.config.posthog.host,
                 num_users=num_users,
-                days_back=days_back
+                days_back=days_back,
+                context=self.context,
             )
 
             logger.info(f"✓ PostHog complete:")
@@ -206,7 +210,8 @@ class RevOpsDataWriter:
             result = write_freshdesk_data(
                 domain=self.config.freshdesk.domain,
                 api_key=self.config.freshdesk.api_key,
-                ticket_count=ticket_count
+                ticket_count=ticket_count,
+                context=self.context,
             )
 
             logger.info(f"✓ Freshdesk complete:")
@@ -235,7 +240,8 @@ class RevOpsDataWriter:
             result = write_supabase_data(
                 url=self.config.supabase.url,
                 service_key=self.config.supabase.service_key,
-                num_companies=num_companies
+                num_companies=num_companies,
+                context=self.context,
             )
 
             logger.info(f"✓ Supabase complete:")
@@ -274,6 +280,7 @@ class RevOpsDataWriter:
                 num_calls=num_calls,
                 days_back=days_back,
                 hubspot_deal_ids=self._hubspot_deal_ids or None,
+                context=self.context,
             )
 
             logger.info(f"✓ Call transcripts complete:")
@@ -291,19 +298,25 @@ class RevOpsDataWriter:
     # Orchestrator
     # ------------------------------------------------------------------
 
-    def write_all(self, services: List[str] = None, **kwargs) -> Dict:
+    def write_all(self, services: List[str] = None, num_random: int = 4, **kwargs) -> Dict:
         """
         Write data to all or specified services.
 
         Args:
-            services:  List of service names (None = all configured)
-            **kwargs:  meta_pixel_id, meta_test_code
+            services:   List of service names (None = all configured)
+            num_random: Extra random companies per run (organic growth)
+            **kwargs:   meta_pixel_id, meta_test_code
         """
         logger.info("\n")
         logger.info("=" * 70)
         logger.info("A-SERIES REVENUE ENGINE — Simulation Start")
         logger.info("=" * 70)
         logger.info(f"Timestamp: {datetime.now().isoformat()}")
+
+        # Build shared context FIRST — all 7 layers use same company personas
+        self.context = build_simulation_context(num_random=num_random)
+        logger.info("\n" + self.context.summary())
+        logger.info("")
 
         configured_services = self.config.get_configured_services()
         logger.info(f"Configured layers: {', '.join(configured_services)}")

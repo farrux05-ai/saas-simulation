@@ -5,11 +5,14 @@ Writes realistic B2B SaaS data to HubSpot (Contacts, Companies, Deals)
 
 import random
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 
 import requests
 
 from utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from utils.simulation_context import SimulationContext, CompanyPersona
 
 logger = get_logger(__name__)
 
@@ -171,75 +174,136 @@ def generate_sample_contacts(count: int = 10) -> List[Dict]:
     return contacts
 
 
-def generate_sample_companies(count: int = 5) -> List[Dict]:
-    """Generate sample company data"""
+def generate_sample_companies(
+    count: int = 5,
+    context: Optional['SimulationContext'] = None
+) -> List[Dict]:
+    """Generate company data.
+    If context is provided, fixed personas are used first (same names every day).
+    Extra random companies fill up to `count`.
+    """
+    from utils.simulation_context import STAGE_AT_RISK, STAGE_CHURNED, STAGE_STALLED
 
-    company_names = [
-        'TechFlow Solutions', 'DataSync Corp', 'CloudVista Inc', 'InnovateLabs',
-        'NextGen Systems', 'ScaleUp Technologies', 'AgileWorks', 'QuantumLeap Inc',
-        'FusionSoft', 'VelocityData', 'PrismTech', 'NexusCloud', 'ApexSolutions',
-        'SynergyTech', 'CatalystSoftware'
-    ]
-
-    industries = [
-        'Other', 'Technology', 'Software', 'Retail', 'Healthcare', 'Manufacturing', 'Finance'
-    ]
+    # Lifecycle → HubSpot lifecyclestage mapping
+    _STAGE_MAP = {
+        "new_lead": "lead",
+        "trial":    "marketingqualifiedlead",
+        "active":   "customer",
+        "at_risk":  "customer",        # paying but at risk
+        "stalled":  "salesqualifiedlead",
+        "won":      "customer",
+        "churned":  "other",
+    }
 
     companies = []
 
-    for i in range(count):
-        company_name = random.choice(company_names) + f" {random.randint(1, 100)}"
-
-        company = {
-            'name': company_name,
-            'domain': f"{company_name.lower().replace(' ', '')}.com",
-            'numberofemployees': random.choice([10, 25, 50, 100, 250, 500, 1000]),
-            'annualrevenue': str(random.choice([100000, 500000, 1000000, 5000000, 10000000, 50000000])),
-            'city': random.choice(['San Francisco', 'New York', 'Austin', 'Seattle', 'Boston', 'Denver', 'Chicago']),
-            'state': random.choice(['CA', 'NY', 'TX', 'WA', 'MA', 'CO', 'IL']),
-            'country': 'United States',
-            'lifecyclestage': random.choice(['lead', 'marketingqualifiedlead', 'salesqualifiedlead', 'opportunity', 'customer']),
-            'type': random.choice(['PROSPECT', 'PARTNER', 'RESELLER', 'VENDOR', 'OTHER'])
-        }
-
-        companies.append(company)
+    if context:
+        # Fixed persona companies — same names/stages every run
+        for p in context.all_personas:
+            companies.append({
+                'name':              p.company_name,
+                'domain':            p.domain,
+                'numberofemployees': p.employee_count,
+                'annualrevenue':     str(int(p.mrr * 12)),
+                'city':              random.choice(['San Francisco', 'New York', 'Austin', 'Seattle', 'Boston']),
+                'state':             random.choice(['CA', 'NY', 'TX', 'WA', 'MA']),
+                'country':           'United States',
+                'lifecyclestage':    _STAGE_MAP.get(p.lifecycle_stage, 'lead'),
+                'type':              'PARTNER' if p.lifecycle_stage in (STAGE_AT_RISK, 'active', 'won') else 'PROSPECT',
+                'industry':          p.industry,
+                '_persona_ref':      p,   # internal reference — stripped before API call
+            })
+    else:
+        # Fallback: original random generation
+        company_names = [
+            'TechFlow Solutions', 'DataSync Corp', 'CloudVista Inc', 'InnovateLabs',
+            'NextGen Systems', 'ScaleUp Technologies', 'AgileWorks', 'QuantumLeap Inc',
+            'FusionSoft', 'VelocityData', 'PrismTech', 'NexusCloud', 'ApexSolutions',
+            'SynergyTech', 'CatalystSoftware'
+        ]
+        industries = ['Other', 'Technology', 'Software', 'Retail', 'Healthcare', 'Manufacturing', 'Finance']
+        for i in range(count):
+            company_name = random.choice(company_names) + f" {random.randint(1, 100)}"
+            companies.append({
+                'name':              company_name,
+                'domain':            f"{company_name.lower().replace(' ', '')}.com",
+                'numberofemployees': random.choice([10, 25, 50, 100, 250, 500, 1000]),
+                'annualrevenue':     str(random.choice([100000, 500000, 1000000, 5000000])),
+                'city':              random.choice(['San Francisco', 'New York', 'Austin', 'Seattle', 'Boston']),
+                'state':             random.choice(['CA', 'NY', 'TX', 'WA', 'MA']),
+                'country':           'United States',
+                'lifecyclestage':    random.choice(['lead', 'marketingqualifiedlead', 'salesqualifiedlead', 'opportunity', 'customer']),
+                'type':              random.choice(['PROSPECT', 'PARTNER', 'VENDOR']),
+            })
 
     return companies
 
 
-def generate_sample_deals(count: int = 8, companies: List[Dict] = None) -> List[Dict]:
-    """Generate sample deal data"""
-
-    deal_names = [
-        'Annual Subscription', 'Enterprise Plan', 'Growth Package', 'Starter Plan',
-        'Professional Services', 'Custom Integration', 'Premium Support', 'Team License'
-    ]
-
-    deal_stages = [
-        'appointmentscheduled', 'qualifiedtobuy', 'presentationscheduled',
-        'decisionmakerboughtin', 'contractsent', 'closedwon', 'closedlost'
-    ]
-
-    pipelines = ['default']  # Can be customized based on HubSpot setup
-
+def generate_sample_deals(
+    count: int = 8,
+    companies: List[Dict] = None,
+    context: Optional['SimulationContext'] = None
+) -> List[Dict]:
+    """Generate deal data.
+    Fixed personas produce deals with the exact stage matching their lifecycle story.
+    """
     deals = []
 
-    for i in range(count):
-        amount = random.choice([5000, 10000, 25000, 50000, 75000, 100000, 150000, 250000])
-        close_date = datetime.now() + timedelta(days=random.randint(0, 90))
+    if context:
+        # Each persona with a persona_ref gets a deal matching their story
+        for company in (companies or []):
+            persona = company.get('_persona_ref')
+            if not persona:
+                # Random extra company — generic deal
+                amount = random.choice([5000, 10000, 25000, 50000])
+                close_date = datetime.now() + timedelta(days=random.randint(15, 90))
+                deals.append({
+                    'dealname':          f"{company['name']} — Subscription",
+                    'amount':            str(amount),
+                    'dealstage':         random.choice(['appointmentscheduled', 'qualifiedtobuy', 'closedwon']),
+                    'pipeline':          'default',
+                    'closedate':         close_date.strftime('%Y-%m-%d'),
+                    'deal_currency_code':'USD',
+                    'dealtype':          'newbusiness',
+                    'hs_priority':       'medium',
+                })
+                continue
 
-        deal = {
-            'dealname': f"{random.choice(deal_names)} - Deal {i+1}",
-            'amount': str(amount),
-            'dealstage': random.choice(deal_stages),
-            'pipeline': random.choice(pipelines),
-            'closedate': close_date.strftime('%Y-%m-%d'),
-            'deal_currency_code': 'USD',
-            'dealtype': random.choice(['newbusiness', 'existingbusiness']),
-            'hs_priority': random.choice(['low', 'medium', 'high']),
-        }
-
-        deals.append(deal)
+            # Fixed persona — stage and amount are deterministic
+            amount = max(int(persona.mrr * 12), 4999)  # annualised
+            close_date = datetime.now() + timedelta(days=30)
+            deals.append({
+                'dealname':          f"{persona.company_name} — {persona.plan_name.title()} Plan",
+                'amount':            str(amount),
+                'dealstage':         persona.deal_stage,
+                'pipeline':          'default',
+                'closedate':         close_date.strftime('%Y-%m-%d'),
+                'deal_currency_code':'USD',
+                'dealtype':          'newbusiness' if persona.lifecycle_stage == 'new_lead' else 'existingbusiness',
+                'hs_priority':       'high' if persona.lifecycle_stage in ('at_risk', 'stalled') else 'medium',
+            })
+    else:
+        deal_names = [
+            'Annual Subscription', 'Enterprise Plan', 'Growth Package', 'Starter Plan',
+            'Professional Services', 'Custom Integration', 'Premium Support', 'Team License'
+        ]
+        deal_stages = [
+            'appointmentscheduled', 'qualifiedtobuy', 'presentationscheduled',
+            'decisionmakerboughtin', 'contractsent', 'closedwon', 'closedlost'
+        ]
+        for i in range(count):
+            amount = random.choice([5000, 10000, 25000, 50000, 75000, 100000])
+            close_date = datetime.now() + timedelta(days=random.randint(0, 90))
+            deals.append({
+                'dealname':          f"{random.choice(deal_names)} - Deal {i+1}",
+                'amount':            str(amount),
+                'dealstage':         random.choice(deal_stages),
+                'pipeline':          'default',
+                'closedate':         close_date.strftime('%Y-%m-%d'),
+                'deal_currency_code':'USD',
+                'dealtype':          random.choice(['newbusiness', 'existingbusiness']),
+                'hs_priority':       random.choice(['low', 'medium', 'high']),
+            })
 
     return deals
 
@@ -307,123 +371,95 @@ def write_hubspot_data(
     access_token: str,
     num_contacts: int = 10,
     num_companies: int = 5,
-    num_deals: int = 8
+    num_deals: int = 8,
+    context: Optional['SimulationContext'] = None,
 ) -> Dict:
     """
-    Write sample B2B SaaS data to HubSpot
-
-    Args:
-        access_token: HubSpot access token
-        num_contacts: Number of contacts to create
-        num_companies: Number of companies to create
-        num_deals: Number of deals to create
-
-    Returns:
-        Summary of created records
+    Write B2B SaaS data to HubSpot.
+    When context is provided, company/deal data reflects the shared personas.
     """
     writer = HubSpotWriter(access_token)
-
     logger.info("Starting HubSpot data write operation")
 
-    results = {
-        'contacts': [],
-        'companies': [],
-        'deals': [],
-        'errors': []
-    }
+    results = {'contacts': [], 'companies': [], 'deals': [], 'errors': []}
 
     try:
-        # Create companies
-        logger.info(f"Creating {num_companies} companies...")
-        sample_companies = generate_sample_companies(num_companies)
+        # Generate companies (context-aware)
+        logger.info(f"Creating companies...")
+        sample_companies = generate_sample_companies(num_companies, context=context)
 
         for company_data in sample_companies:
+            persona = company_data.pop('_persona_ref', None)  # strip internal ref
             try:
-                created_company = writer.create_company(company_data)
-                results['companies'].append(created_company)
+                created = writer.create_company(company_data)
+                created['_persona_ref'] = persona  # re-attach for deal generation
+                results['companies'].append(created)
+                if persona:
+                    persona.hubspot_deal_id = created.get('id')  # capture for later layers
             except Exception as e:
                 logger.error(f"Failed to create company: {e}")
                 results['errors'].append({'type': 'company', 'error': str(e)})
 
-        # Create contacts and associate with companies
-        logger.info(f"Creating {num_contacts} contacts...")
+        # Generate contacts from persona contact_name / email
+        logger.info(f"Creating contacts...")
         sample_contacts = generate_sample_contacts(num_contacts)
+        # Overwrite first N contacts with persona contacts for correlation
+        if context:
+            for i, persona in enumerate(context.fixed_personas):
+                if i < len(sample_contacts):
+                    sample_contacts[i]['email']     = persona.contact_email
+                    sample_contacts[i]['firstname']  = persona.contact_name.split()[0]
+                    sample_contacts[i]['lastname']   = persona.contact_name.split()[-1]
+                    sample_contacts[i]['jobtitle']   = persona.contact_title
 
         for idx, contact_data in enumerate(sample_contacts):
             try:
                 created_contact = writer.create_contact(contact_data)
                 results['contacts'].append(created_contact)
-
-                # Associate contact with a company
                 if results['companies']:
                     company = random.choice(results['companies'])
                     try:
                         writer.associate_objects(
                             'contacts', created_contact['id'],
-                            'companies', company['id'],
-                            '279'  # Standard contact-to-company association
+                            'companies', company['id'], '279'
                         )
-                        logger.debug(f"Associated contact {created_contact['id']} with company {company['id']}")
-                    except Exception as e:
-                        logger.warning(f"Failed to associate contact with company: {e}")
-
+                    except Exception:
+                        pass
             except Exception as e:
                 logger.error(f"Failed to create contact: {e}")
                 results['errors'].append({'type': 'contact', 'error': str(e)})
 
-        # Create deals and associate with contacts and companies
-        logger.info(f"Creating {num_deals} deals...")
-        sample_deals = generate_sample_deals(num_deals)
-
+        # Create deals from persona stages
+        logger.info(f"Creating deals...")
+        sample_deals = generate_sample_deals(num_deals, results['companies'], context=context)
         for deal_data in sample_deals:
             try:
                 created_deal = writer.create_deal(deal_data)
                 results['deals'].append(created_deal)
-
-                # Associate deal with a contact
                 if results['contacts']:
-                    contact = random.choice(results['contacts'])
                     try:
-                        writer.associate_objects(
-                            'deals', created_deal['id'],
-                            'contacts', contact['id'],
-                            '3'  # Standard deal-to-contact association
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to associate deal with contact: {e}")
-
-                # Associate deal with a company
+                        writer.associate_objects('deals', created_deal['id'], 'contacts', random.choice(results['contacts'])['id'], '3')
+                    except Exception:
+                        pass
                 if results['companies']:
-                    company = random.choice(results['companies'])
                     try:
-                        writer.associate_objects(
-                            'deals', created_deal['id'],
-                            'companies', company['id'],
-                            '5'  # Standard deal-to-company association
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to associate deal with company: {e}")
-
+                        writer.associate_objects('deals', created_deal['id'], 'companies', random.choice(results['companies'])['id'], '5')
+                    except Exception:
+                        pass
             except Exception as e:
                 logger.error(f"Failed to create deal: {e}")
                 results['errors'].append({'type': 'deal', 'error': str(e)})
 
-        # Advance existing deal stages (for snapshot delta testing)
         deals_advanced = advance_deal_stages(writer)
         results['deals_advanced'] = deals_advanced
 
-        # Summary
         logger.info(f"""
-HubSpot Data Write Complete:
-- Companies created:  {len(results['companies'])}
-- Contacts created:   {len(results['contacts'])}
-- Deals created:      {len(results['deals'])}
-- Deals advanced:     {deals_advanced}
-- Errors:             {len(results['errors'])}
+HubSpot complete:
+  Companies: {len(results['companies'])} | Contacts: {len(results['contacts'])}
+  Deals: {len(results['deals'])} | Advanced: {deals_advanced} | Errors: {len(results['errors'])}
         """)
-
         return results
 
     except Exception as e:
-        logger.error(f"HubSpot data write operation failed: {e}")
+        logger.error(f"HubSpot data write failed: {e}")
         raise

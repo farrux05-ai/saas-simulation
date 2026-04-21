@@ -6,11 +6,14 @@ Sends product analytics events to PostHog for B2B SaaS RevOps
 import random
 import uuid
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 
 import requests
 
 from utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from utils.simulation_context import SimulationContext, CompanyPersona
 
 logger = get_logger(__name__)
 
@@ -170,17 +173,26 @@ class PostHogWriter:
         return self._make_request(self.capture_url, payload)
 
 
-def generate_sample_posthog_events(num_users: int = 25, days_back: int = 30) -> tuple:
+def generate_sample_posthog_events(
+    num_users: int = 25,
+    days_back: int = 30,
+    context: Optional['SimulationContext'] = None
+) -> tuple:
     """
-    Generate realistic B2B SaaS product analytics events for PostHog
+    Generate realistic B2B SaaS product analytics events for PostHog.
 
-    Args:
-        num_users: Number of unique users to simulate
-        days_back: Number of days of historical data
-
-    Returns:
-        Tuple of (events list, user properties list)
+    When context is provided, each fixed persona drives its own event pattern:
+      - at_risk (Acme Corp):   lots of export_failed_error, high load_time_ms
+      - stalled (TechStart):   low engagement after onboarding (feature not found)
+      - happy_path (DataFlow): high session count, many Report Generated events
+      - churned (CloudNine):   zero recent events (last active 45+ days ago)
+      - new_lead (DevOps Pro): Signup + Onboarding events only (first day)
     """
+    from utils.simulation_context import (
+        SCENARIO_REPORTS_BLOCKER, SCENARIO_JIRA_BLOCKER,
+        SCENARIO_HAPPY_PATH, SCENARIO_BUDGET_CUT, SCENARIO_NEW_ONBOARD
+    )
+
     events = []
     user_properties = []
 
@@ -191,19 +203,108 @@ def generate_sample_posthog_events(num_users: int = 25, days_back: int = 30) -> 
     # Feature categories
     features = {
         'dashboard': ['overview', 'metrics', 'graphs', 'filters'],
-        'reports': ['create', 'export', 'schedule', 'share', 'export_failed_error'], # Pattern: Report export failures
+        'reports': ['create', 'export', 'schedule', 'share', 'export_failed_error'],
         'integrations': ['connect', 'sync', 'disconnect', 'configure'],
         'team': ['invite', 'remove', 'permissions', 'settings'],
         'api': ['generate_key', 'view_docs', 'test_endpoint', 'rate_limits'],
         'settings': ['profile', 'billing', 'notifications', 'security']
     }
 
+    # ------------------------------------------------------------------
+    # FIXED PERSONA EVENTS (context-driven, correlated signal)
+    # ------------------------------------------------------------------
+    if context:
+        for persona in context.fixed_personas:
+            uid = f"user_{persona.domain.replace('.', '_')}"  # stable ID per company
+            user_properties.append({
+                'distinct_id': uid,
+                'properties': {
+                    'email':       persona.contact_email,
+                    'name':        persona.contact_name,
+                    'company':     persona.company_name,
+                    'plan':        persona.plan_name,
+                    'role':        'admin',
+                    'signup_date': (datetime.now() - timedelta(days=90)).isoformat(),
+                }
+            })
+
+            if persona.scenario == SCENARIO_BUDGET_CUT:
+                # CloudNine: churned — NO recent events at all
+                # (last event was 50 days ago, effectively gone)
+                old_date = datetime.now() - timedelta(days=50)
+                events.append({
+                    'event': 'Session Started', 'distinct_id': uid,
+                    'properties': {'company': persona.company_name, 'plan': persona.plan_name},
+                    'timestamp': old_date.isoformat()
+                })
+                continue  # no more events for churned user
+
+            if persona.scenario == SCENARIO_NEW_ONBOARD:
+                # DevOps Pro: brand new — Signup + Onboarding only
+                now = datetime.now()
+                events += [
+                    {'event': 'User Signed Up',       'distinct_id': uid, 'properties': {'company': persona.company_name, 'plan': 'free', 'signup_source': 'paid_ad'}, 'timestamp': now.isoformat()},
+                    {'event': 'Onboarding Started',   'distinct_id': uid, 'properties': {'company': persona.company_name}, 'timestamp': (now + timedelta(minutes=2)).isoformat()},
+                    {'event': 'Pricing Page Viewed',  'distinct_id': uid, 'properties': {'plan_seen': 'professional'}, 'timestamp': (now + timedelta(minutes=5)).isoformat()},
+                ]
+                continue
+
+            if persona.scenario == SCENARIO_REPORTS_BLOCKER:
+                # Acme Corp: at_risk — heavy report export failures in last 14 days
+                for day_offset in range(14):
+                    ts = (datetime.now() - timedelta(days=day_offset)).isoformat()
+                    events.append({'event': 'Session Started', 'distinct_id': uid, 'properties': {'company': persona.company_name, 'plan': persona.plan_name}, 'timestamp': ts})
+                    events.append({
+                        'event': 'Feature Used', 'distinct_id': uid,
+                        'properties': {
+                            'feature_category': 'reports',
+                            'feature_action':   'export_failed_error',
+                            'feature_name':     'reports_export_failed_error',
+                            'company':          persona.company_name,
+                            'plan':             persona.plan_name,
+                            'load_time_ms':     random.randint(8000, 20000),  # brutally slow
+                        },
+                        'timestamp': ts,
+                    })
+                continue
+
+            if persona.scenario == SCENARIO_JIRA_BLOCKER:
+                # TechStart: stalled — onboarded fine but no deep feature usage
+                # They tried integrations, couldn't find Jira, dropped off
+                for day_offset in range(10, 30):
+                    ts = (datetime.now() - timedelta(days=day_offset)).isoformat()
+                    events.append({'event': 'Session Started', 'distinct_id': uid, 'properties': {'company': persona.company_name, 'plan': 'trial'}, 'timestamp': ts})
+                    events.append({'event': 'Feature Used', 'distinct_id': uid,
+                        'properties': {'feature_category': 'integrations', 'feature_action': 'connect', 'feature_name': 'integrations_connect', 'company': persona.company_name, 'plan': 'trial', 'load_time_ms': 400},
+                        'timestamp': ts})
+                # Last 10 days: zero sessions (disengaged)
+                continue
+
+            if persona.scenario == SCENARIO_HAPPY_PATH:
+                # DataFlow: healthy — lots of sessions, many reports generated
+                for day_offset in range(days_back):
+                    ts = (datetime.now() - timedelta(days=day_offset)).isoformat()
+                    events.append({'event': 'Session Started', 'distinct_id': uid, 'properties': {'company': persona.company_name, 'plan': persona.plan_name}, 'timestamp': ts})
+                    events.append({'event': 'Feature Used', 'distinct_id': uid,
+                        'properties': {'feature_category': 'reports', 'feature_action': 'export', 'feature_name': 'reports_export', 'company': persona.company_name, 'plan': persona.plan_name, 'load_time_ms': random.randint(200, 800)},
+                        'timestamp': ts})
+                    if day_offset % 3 == 0:  # every 3 days
+                        events.append({'event': 'Report Generated', 'distinct_id': uid,
+                            'properties': {'report_type': 'revenue', 'export_format': 'csv', 'date_range': '30d'},
+                            'timestamp': ts})
+                continue
+
+    # ------------------------------------------------------------------
+    # RANDOM EXTRA USERS (generic activity)
+    # ------------------------------------------------------------------
+    _random_companies = ['NexGen Inc', 'Helix Analytics', 'Orion SaaS', 'Vectora AI', 'Forge Systems', 'ScaleUp Ltd']
+
     for user_idx in range(num_users):
         user_id = f"user_{uuid.uuid4()}"
-        email = f"user{user_idx}@example{user_idx % 5}.com"
-        company = random.choice(companies)
-        plan = random.choice(plans)
-        role = random.choice(roles)
+        email   = f"user{user_idx}@example{user_idx % 5}.com"
+        company = random.choice(_random_companies)
+        plan    = random.choice(plans)
+        role    = random.choice(roles)
 
         signup_date = datetime.now() - timedelta(days=random.randint(1, days_back))
 
@@ -392,7 +493,7 @@ def generate_sample_posthog_events(num_users: int = 25, days_back: int = 30) -> 
                 'timestamp': support_date.isoformat()
             })
 
-    logger.info(f"Generated {len(events)} PostHog events for {num_users} users")
+    logger.info(f"Generated {len(events)} PostHog events for {num_users} persona/random users")
     return events, user_properties
 
 
@@ -400,7 +501,8 @@ def write_posthog_data(
     api_key: str,
     host: str = "https://app.posthog.com",
     num_users: int = 25,
-    days_back: int = 30
+    days_back: int = 30,
+    context: Optional['SimulationContext'] = None,
 ) -> Dict:
     """
     Write sample data to PostHog
@@ -417,9 +519,7 @@ def write_posthog_data(
     logger.info("Starting PostHog data write")
 
     writer = PostHogWriter(api_key, host)
-
-    # Generate sample data
-    events, user_properties = generate_sample_posthog_events(num_users, days_back)
+    events, user_properties = generate_sample_posthog_events(num_users, days_back, context=context)
 
     # Send user properties first
     successful_users = 0

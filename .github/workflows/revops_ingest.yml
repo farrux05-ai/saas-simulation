@@ -36,8 +36,7 @@ jobs:
         SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        MIXPANEL_PROJECT_TOKEN: ${{ secrets.MIXPANEL_PROJECT_TOKEN }}
-        MIXPANEL_API_SECRET: ${{ secrets.MIXPANEL_API_SECRET }}
+        # Mixpanel removed — replaced by PostHog for product analytics
         POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
         POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
         FRESHDESK_DOMAIN: ${{ secrets.FRESHDESK_DOMAIN }}
@@ -46,4 +45,4 @@ jobs:
         META_ACCOUNT_ID: ${{ secrets.META_ACCOUNT_ID }}
         META_PIXEL_ID: ${{ secrets.META_PIXEL_ID }}
         META_TEST_EVENT_ID: ${{ secrets.META_TEST_EVENT_ID }}
-      run: python main_revops_writer.py --all
+      run: python main_revops_writer.py --all --num-random 4

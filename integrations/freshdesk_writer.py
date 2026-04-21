@@ -5,11 +5,14 @@ Writes support ticket data to Freshdesk for testing/sandbox environments
 
 import random
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 
 import requests
 
 from utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from utils.simulation_context import SimulationContext
 
 logger = get_logger(__name__)
 
@@ -162,34 +165,72 @@ CONTACT_NAMES = [
 ]
 
 
-def generate_sample_tickets(count: int = 20) -> List[Dict]:
+def generate_sample_tickets(
+    count: int = 20,
+    context: Optional['SimulationContext'] = None
+) -> List[Dict]:
     """
-    Generate sample support tickets
-
-    Args:
-        count: Number of tickets to generate
-
-    Returns:
-        List of ticket dictionaries
+    Generate support tickets.
+    When context provided, at_risk persona (Acme Corp) generates URGENT
+    export-related tickets. Other fixed personas get appropriate ticket volumes.
     """
+    from utils.simulation_context import SCENARIO_REPORTS_BLOCKER, SCENARIO_HAPPY_PATH
+
     tickets = []
 
-    for i in range(count):
-        ticket_type = random.choice(['technical', 'billing', 'feature_request', 'question'])
+    # --- FIXED PERSONA TICKETS (context-driven signal) ---
+    if context:
+        for persona in context.fixed_personas:
+            first = persona.contact_name.split()[0]
+            last  = persona.contact_name.split()[-1]
+            email = persona.contact_email
 
-        # Random subject
+            if persona.scenario == SCENARIO_REPORTS_BLOCKER:
+                # Acme Corp: 3 urgent report-export tickets this run
+                for msg, prio in [
+                    ("URGENT: Report generation timing out after 10 seconds — affecting board meeting", 4),
+                    ("The export_failed_error keeps appearing on reports page — 3rd time this week", 3),
+                    ("Cannot export custom date range report to CSV — blank file downloaded", 3),
+                ]:
+                    tickets.append({
+                        'subject':     msg,
+                        'description': msg,
+                        'email':       email,
+                        'priority':    prio,   # 3=High, 4=Urgent
+                        'status':      2,      # Open
+                        'source':      2,      # Portal
+                        'name':        f"{first} {last}",
+                        'tags':        ['report_export', 'at_risk_customer', 'urgent'],
+                    })
+
+            elif persona.scenario == SCENARIO_HAPPY_PATH:
+                # DataFlow: 1 normal low-priority ticket
+                tickets.append({
+                    'subject':     "Question: how to schedule weekly reports?",
+                    'description': "We love the platform! Is there a way to auto-send reports every Monday?",
+                    'email':       email,
+                    'priority':    1,  # Low
+                    'status':      5,  # Closed
+                    'source':      9,  # Email
+                    'name':        f"{first} {last}",
+                    'tags':        ['feature_question', 'happy_customer'],
+                })
+            # stalled / churned / new_lead → no tickets generated
+
+    # --- RANDOM TICKETS (fill up to count) ---
+    remaining = max(0, count - len(tickets))
+    for i in range(remaining):
+        ticket_type = random.choice(['technical', 'billing', 'feature_request', 'question'])
         subject = random.choice(TICKET_SUBJECTS)
         if '{}' in subject:
-            replacements = {
+            for key, val in {
                 'invoice': random.randint(10000, 99999),
-                'integration': random.choice(['Salesforce', 'Slack', 'Zapier', 'Stripe']),
-            }
-            for key, val in replacements.items():
+                'integration': random.choice(['Slack', 'Zapier', 'Stripe']),
+            }.items():
                 if key in subject.lower():
                     subject = subject.format(val)
                     break
 
-        # Random description
         description = random.choice(TICKET_DESCRIPTIONS[ticket_type])
         if '{}' in description:
             if ticket_type == 'technical':
@@ -200,11 +241,8 @@ def generate_sample_tickets(count: int = 20) -> List[Dict]:
                 )
             elif ticket_type == 'billing':
                 description = description.format(
-                    random.randint(100, 1000),
-                    random.randint(100, 1000),
-                    random.randint(10000, 99999),
-                    random.randint(5, 20),
-                    random.randint(5, 20)
+                    random.randint(100, 1000), random.randint(100, 1000),
+                    random.randint(10000, 99999), random.randint(5, 20), random.randint(5, 20)
                 )
             else:
                 description = description.format(
@@ -213,27 +251,22 @@ def generate_sample_tickets(count: int = 20) -> List[Dict]:
                     random.choice(['manual workarounds', 'external tools'])
                 )
 
-        # Contact info
         first_name, last_name = random.choice(CONTACT_NAMES)
         company = random.choice(COMPANIES)
         email = f"{first_name.lower()}.{last_name.lower()}@{company.lower().replace(' ', '')}.com"
+        priority = random.choice([1, 1, 2, 2, 2, 3, 3, 4])
+        status = random.choice([2, 2, 2, 3, 3, 4, 5])
 
-        # Priority and status
-        priority = random.choice([1, 1, 2, 2, 2, 3, 3, 4])  # Weighted towards medium
-        status = random.choice([2, 2, 2, 3, 3, 4, 5])  # 2=Open, 3=Pending, 4=Resolved, 5=Closed
-
-        ticket = {
-            'subject': subject,
+        tickets.append({
+            'subject':     subject,
             'description': description,
-            'email': email,
-            'priority': priority,
-            'status': status,
-            'source': random.choice([2, 3, 7, 9]),  # Portal, Phone, Chat, Email
-            'name': f"{first_name} {last_name}",
-            'tags': [ticket_type, random.choice(['urgent', 'normal', 'low-priority'])],
-        }
-
-        tickets.append(ticket)
+            'email':       email,
+            'priority':    priority,
+            'status':      status,
+            'source':      random.choice([2, 3, 7, 9]),
+            'name':        f"{first_name} {last_name}",
+            'tags':        [ticket_type, random.choice(['urgent', 'normal', 'low-priority'])],
+        })
 
     return tickets
 
@@ -241,7 +274,8 @@ def generate_sample_tickets(count: int = 20) -> List[Dict]:
 def write_freshdesk_data(
     domain: str,
     api_key: str,
-    ticket_count: int = 20
+    ticket_count: int = 20,
+    context: Optional['SimulationContext'] = None,
 ) -> Dict:
     """
     Write sample data to Freshdesk
@@ -257,9 +291,7 @@ def write_freshdesk_data(
     writer = FreshdeskWriter(domain, api_key)
 
     logger.info(f"Starting Freshdesk data write - {ticket_count} tickets")
-
-    # Generate sample tickets
-    tickets = generate_sample_tickets(ticket_count)
+    tickets = generate_sample_tickets(ticket_count, context=context)
 
     created_tickets = []
     failed_tickets = []

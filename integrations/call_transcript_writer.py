@@ -14,11 +14,14 @@ Why this exists:
 import random
 import uuid
 from datetime import datetime, timedelta
-from typing import Dict, List
+from typing import Dict, List, Optional, TYPE_CHECKING
 
 from supabase import Client, create_client
 
 from utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from utils.simulation_context import SimulationContext
 
 logger = get_logger(__name__)
 
@@ -165,28 +168,121 @@ def _generate_transcript(call_type: str, rep: Dict, prospect_company: str) -> tu
         competitor=random.choice(COMPETITORS),
         n=random.randint(5, 50),
         weeks=random.randint(4, 16),
-    ), objection
+    )
+    return transcript_text, objection
 
 
 def generate_call_transcripts(
     num_calls: int = 30,
     days_back: int = 60,
     hubspot_deal_ids: List[str] = None,
+    context: Optional['SimulationContext'] = None,
 ) -> List[Dict]:
     """
-    Generate a list of realistic call transcript records.
-
-    Args:
-        num_calls:         Total number of calls to simulate
-        days_back:         How many days of history to spread calls over
-        hubspot_deal_ids:  Optional list of HubSpot deal IDs to reference
-
-    Returns:
-        List of call transcript dicts ready for Supabase insert
+    Generate call transcript records.
+    Fixed personas get deterministic call records that match their lifecycle story.
+    Random extras fill the remainder.
     """
+    from utils.simulation_context import (
+        SCENARIO_JIRA_BLOCKER, SCENARIO_BUDGET_CUT,
+        SCENARIO_HAPPY_PATH, SCENARIO_NEW_ONBOARD
+    )
+
     records = []
 
-    for _ in range(num_calls):
+    # --- FIXED PERSONA CALLS (context-driven) ---
+    if context:
+        for persona in context.fixed_personas:
+            if persona.scenario == SCENARIO_NEW_ONBOARD:
+                # DevOps Pro: first discovery call, very early stage
+                call_date = datetime.now() - timedelta(days=1)
+                transcript = (
+                    f"Carlos Ruiz: Hi {persona.contact_name}, thanks for booking this call! "
+                    f"Can you tell me more about what's bringing you here today?\n"
+                    f"{persona.contact_name}: Sure! We're growing fast and our current setup is getting messy. "
+                    f"We heard about you via an ad and wanted to explore.\n"
+                    f"Carlos Ruiz: Perfect timing. What tools are you currently using?\n"
+                    f"{persona.contact_name}: Mostly spreadsheets and {random.choice(COMPETITORS)}.\n"
+                    f"Carlos Ruiz: Got it. {random.choice(PAIN_POINTS).capitalize()} is exactly what we fix. "
+                    f"Let me schedule a full demo for your team."
+                )
+                records.append(_make_record(
+                    call_type="discovery", outcome="moved_to_demo",
+                    rep=REPS[3], persona=persona,
+                    call_date=call_date, transcript=transcript,
+                    objection=random.choice(OBJECTIONS[:3]),
+                    buying_signal="we are growing fast and need to scale",
+                    next_step="Schedule full demo with broader team",
+                    hubspot_deal_ids=hubspot_deal_ids,
+                ))
+
+            elif persona.scenario == SCENARIO_JIRA_BLOCKER:
+                # TechStart: follow_up call, stalled on Jira
+                call_date = datetime.now() - timedelta(days=5)
+                objection = "we strictly need a 2-way Jira integration before buying"
+                transcript = (
+                    f"Sarah Kim: Following up from our demo, {persona.contact_name}. Any feedback from the team?\n"
+                    f"{persona.contact_name}: The platform looks great, honestly. But we hit a wall — {objection}.\n"
+                    f"Sarah Kim: Understood. Is this a hard blocker or something we can phase in?\n"
+                    f"{persona.contact_name}: Hard blocker for us. Our devs live in Jira. Without 2-way sync we can't adopt this.\n"
+                    f"Sarah Kim: I hear you. Let me escalate this to product and come back to you by EOW."
+                )
+                records.append(_make_record(
+                    call_type="follow_up", outcome="stalled",
+                    rep=REPS[0], persona=persona,
+                    call_date=call_date, transcript=transcript,
+                    objection=objection,
+                    buying_signal=None,
+                    next_step="Escalate Jira integration request to product team",
+                    hubspot_deal_ids=hubspot_deal_ids,
+                ))
+
+            elif persona.scenario == SCENARIO_BUDGET_CUT:
+                # CloudNine: negotiation call, budget freeze
+                call_date = datetime.now() - timedelta(days=14)
+                objection = "not the right time — Q3 budget is locked"
+                transcript = (
+                    f"Lena M\u00fcller: Great to reconnect, {persona.contact_name}. Where are we on the contract?\n"
+                    f"{persona.contact_name}: I have bad news. Finance reviewed it and {objection}.\n"
+                    f"Lena M\u00fcller: I understand. Is there any flexibility if we offer quarterly billing?\n"
+                    f"{persona.contact_name}: Not at this stage. Q3 is frozen. We might revisit in Q4 but no promises.\n"
+                    f"Lena M\u00fcller: Completely understood. I'll mark this as paused and check in again in October."
+                )
+                records.append(_make_record(
+                    call_type="negotiation", outcome="closed_lost",
+                    rep=REPS[2], persona=persona,
+                    call_date=call_date, transcript=transcript,
+                    objection=objection,
+                    buying_signal=None,
+                    next_step="No action — closed lost",
+                    hubspot_deal_ids=hubspot_deal_ids,
+                ))
+
+            elif persona.scenario == SCENARIO_HAPPY_PATH:
+                # DataFlow: closing call, expansion deal
+                call_date = datetime.now() - timedelta(days=3)
+                transcript = (
+                    f"James Okafor: {persona.contact_name}, contracts are ready to go!\n"
+                    f"{persona.contact_name}: We've been very happy. The reporting feature alone saved us 5 hours a week.\n"
+                    f"James Okafor: Fantastic! Ready to upgrade to the Business plan and add 5 more seats?\n"
+                    f"{persona.contact_name}: Absolutely. can we talk about enterprise pricing for next year?\n"
+                    f"James Okafor: Of course. I'll loop in your CSM today and we'll get that locked in."
+                )
+                records.append(_make_record(
+                    call_type="closing", outcome="closed_won",
+                    rep=REPS[1], persona=persona,
+                    call_date=call_date, transcript=transcript,
+                    objection=None,
+                    buying_signal="can we talk about enterprise pricing?",
+                    next_step="Introduce to CSM, send expanded contract",
+                    hubspot_deal_ids=hubspot_deal_ids,
+                ))
+            # Acme Corp (at_risk): no active sales call — they're already a customer struggling silently
+
+    # --- RANDOM / GENERIC CALLS ---
+    num_random = max(0, num_calls - len(records))
+
+    for _ in range(num_random):
         call_type = random.choice(CALL_TYPES)
         rep = random.choice(REPS)
         prospect_company = random.choice(PROSPECT_COMPANIES)
@@ -238,8 +334,34 @@ def generate_call_transcripts(
         
         records.append(record)
 
-    logger.info(f"Generated {len(records)} call transcript records")
+    logger.info(f"Generated {len(records)} call transcript records ({len(context.fixed_personas) if context else 0} persona + {num_random} random)")
     return records
+
+
+def _make_record(
+    call_type: str, outcome: str, rep: Dict, persona,
+    call_date: datetime, transcript: str,
+    objection: Optional[str], buying_signal: Optional[str],
+    next_step: str, hubspot_deal_ids: List[str]
+) -> Dict:
+    """Build a single call transcript record dict."""
+    return {
+        "id":               str(uuid.uuid4()),
+        "call_type":        call_type,
+        "deal_stage":       DEAL_STAGES.get(call_type, "Unknown"),
+        "outcome":          outcome,
+        "rep_name":         rep["name"],
+        "rep_email":        rep["email"],
+        "prospect_company": persona.company_name,
+        "duration_minutes": random.randint(15, 55),
+        "call_date":        call_date.isoformat(),
+        "transcript":       transcript,
+        "objection_raised": objection,
+        "buying_signal":    buying_signal,
+        "next_step":        next_step,
+        "hubspot_deal_id":  random.choice(hubspot_deal_ids) if hubspot_deal_ids else None,
+        "created_at":       call_date.isoformat(),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -273,6 +395,7 @@ def write_call_transcripts(
     num_calls: int = 30,
     days_back: int = 60,
     hubspot_deal_ids: List[str] = None,
+    context: Optional['SimulationContext'] = None,
 ) -> Dict:
     """
     Generate and write call transcripts to Supabase.
@@ -290,7 +413,7 @@ def write_call_transcripts(
     logger.info(f"Generating {num_calls} call transcripts (last {days_back} days)...")
 
     client: Client = create_client(url, service_key)
-    records = generate_call_transcripts(num_calls, days_back, hubspot_deal_ids)
+    records = generate_call_transcripts(num_calls, days_back, hubspot_deal_ids, context=context)
 
     # Note: run CREATE_TABLE_SQL once in Supabase SQL editor if table doesn't exist
     logger.info("DDL hint: run CREATE_TABLE_SQL in Supabase SQL editor if first run")
