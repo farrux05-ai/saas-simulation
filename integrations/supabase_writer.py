@@ -138,6 +138,12 @@ class SupabaseWriter:
 
         companies = []
         
+        try:
+            existing = self.client.table('companies').select('id, domain').execute()
+            domain_to_id = {row['domain']: row['id'] for row in existing.data}
+        except Exception:
+            domain_to_id = {}
+        
         # --- FIXED PERSONAS ---
         if context:
             for p in context.fixed_personas:
@@ -149,7 +155,7 @@ class SupabaseWriter:
                 elif p.lifecycle_stage == 'new_lead': status = 'Trial'
                 
                 companies.append({
-                    'id': str(uuid.uuid4()),
+                    'id': domain_to_id.get(p.domain) or str(uuid.uuid4()),
                     'name': p.company_name,
                     'domain': p.domain,
                     'industry': random.choice(industries),
@@ -165,10 +171,11 @@ class SupabaseWriter:
         # --- RANDOM EXTRAS ---
         num_random = max(0, count - len(companies))
         for i in range(num_random):
+            domain = f"company{i+1}-{uuid.uuid4().hex[:4]}.com"
             companies.append({
-                'id': str(uuid.uuid4()),
+                'id': domain_to_id.get(domain) or str(uuid.uuid4()),
                 'name': f"Company {i+1} Inc",
-                'domain': f"company{i+1}-{uuid.uuid4().hex[:4]}.com",
+                'domain': domain,
                 'industry': random.choice(industries),
                 'employee_count': random.choice([10, 25, 50, 100, 250, 500, 1000]),
                 'annual_revenue': round(random.uniform(100000, 10000000), 2),
@@ -180,7 +187,7 @@ class SupabaseWriter:
             })
 
         try:
-            response = self.client.table('companies').insert(companies).execute()
+            response = self.client.table('companies').upsert(companies, on_conflict='domain').execute()
             logger.info(f"Successfully inserted {len(companies)} companies")
             return companies
         except Exception as e:
@@ -204,16 +211,23 @@ class SupabaseWriter:
         first_names = ['John', 'Jane', 'Mike', 'Sarah', 'David', 'Emily', 'Chris', 'Anna']
         last_names = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller']
 
+        try:
+            existing = self.client.table('users').select('id, email').execute()
+            email_to_id = {row['email']: row['id'] for row in existing.data}
+        except Exception:
+            email_to_id = {}
+
         users = []
         for company in companies:
             num_users = random.randint(1, users_per_company * 2)
             for i in range(num_users):
                 first = random.choice(first_names)
                 last = random.choice(last_names)
+                email = f"{first.lower()}.{last.lower()}{i}@{company['domain']}"
                 user = {
-                    'id': str(uuid.uuid4()),
+                    'id': email_to_id.get(email) or str(uuid.uuid4()),
                     'company_id': company['id'],
-                    'email': f"{first.lower()}.{last.lower()}{i}@{company['domain']}",
+                    'email': email,
                     'first_name': first,
                     'last_name': last,
                     'role': random.choice(roles),
@@ -229,7 +243,7 @@ class SupabaseWriter:
             batch_size = 100
             for i in range(0, len(users), batch_size):
                 batch = users[i:i + batch_size]
-                self.client.table('users').insert(batch).execute()
+                self.client.table('users').upsert(batch, on_conflict='email').execute()
                 logger.info(f"Inserted batch {i//batch_size + 1} ({len(batch)} users)")
 
             logger.info(f"Successfully inserted {len(users)} users")

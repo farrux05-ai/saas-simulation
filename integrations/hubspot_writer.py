@@ -4,6 +4,7 @@ Writes realistic B2B SaaS data to HubSpot (Contacts, Companies, Deals)
 """
 
 import random
+import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, TYPE_CHECKING
 
@@ -55,11 +56,27 @@ class HubSpotWriter:
 
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.RequestException as e:
+        except requests.exceptions.HTTPError as e:
+            if response.status_code == 409:
+                # Handle "Conflict" gracefully by parsing the existing ID
+                try:
+                    error_data = response.json()
+                    msg = error_data.get('message', '')
+                    match = re.search(r"Existing ID: (\d+)", msg)
+                    if match:
+                        existing_id = match.group(1)
+                        logger.debug(f"HubSpot 409 Conflict: Extracted existing ID {existing_id}")
+                        return {'id': existing_id, 'is_existing': True}
+                except Exception:
+                    pass
+                    
             if hasattr(e, 'response') and e.response is not None:
                 logger.error(f"HubSpot API request failed: {e.response.status_code} - {e.response.text}")
             else:
                 logger.error(f"HubSpot API request failed: {e}")
+            raise
+        except requests.exceptions.RequestException as e:
+            logger.error(f"HubSpot API request failed: {e}")
             raise
 
     def create_contact(self, contact_data: Dict) -> Dict:
