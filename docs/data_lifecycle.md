@@ -1,55 +1,55 @@
 # Data Lifecycle & Correlation Logic
 
-> **Uchun kim:** Analytics Engineer, RevOps muhandis, yoki bu loyiha bilan tanishmoqchi bo'lgan har qanday kishi.  
-> **Maqsad:** "Nima qildik?" emas, **"Nima uchun shunday qildik va bu real hayotda qanday ishlaydi?"**
+> **Target Audience:** Analytics Engineers, RevOps Engineers, or anyone looking to understand the architecture of this project.  
+> **Purpose:** Not just "What did we build?" but **"Why did we build it this way, and how does it map to the real world?"**
 
 ---
 
-## 1. Muammo: Nima uchun oddiy random data yetarli emas?
+## 1. The Problem: Why Simple Random Data is Not Enough
 
-Ko'pchilik data pipeline simulyatsiyalari shunday ishlaydi:
+Most data pipeline simulations operate like this:
 
 ```
-HubSpot → n ta tasodifiy kontakt, n ta tasodifiy deal
-Stripe  → n ta tasodifiy mijoz, n ta tasodifiy obuna
-PostHog → n ta tasodifiy hodisa
+HubSpot → n random contacts, n random deals
+Stripe  → n random customers, n random subscriptions
+PostHog → n random events
 ```
 
-Natija? Warehouse'da hech narsa JOIN bo'lmaydi. "TechFlow Solutions" HubSpot'da bor, lekin Stripe'da yo'q. "Acme Corp" Stripe'da bor, lekin PostHog'da hech qachon tizimga kirmagan. Bu `Analytics Engineering` o'rganish uchun, yoki prezentatsiya uchun mutlaqo yaroqsiz.
+The result? Nothing joins in your data warehouse. "TechFlow Solutions" exists in HubSpot but is missing in Stripe. "Acme Corp" exists in Stripe but never logged into PostHog. This is practically useless for learning Analytics Engineering or presenting a portfolio project, because you can't build any meaningful cross-platform metrics.
 
-**Bizning yondashuv:** Har kuni ishga tushadigan GitHub Actions script barcha 7 qatlam uchun *bir xil kompaniyalar* va *aniq ishbilarmonlik holatlari* bilan ishlaydi.
+**Our Approach:** A GitHub Actions script runs daily, pushing data across all 7 layers for the *exact same companies* experiencing *specific business scenarios*.
 
 ---
 
-## 2. Arxitektura: `SimulationContext`
+## 2. Architecture: `SimulationContext`
 
-`utils/simulation_context.py` faylida `SimulationContext` klassi joylashgan. Har kunlik ishga tushirishda (`python main_revops_writer.py --all`) eng birinchi chaqiriladigan funksiya mana shu:
+The `SimulationContext` class lives in `utils/simulation_context.py`. During every daily run (`python main_revops_writer.py --all`), this is the first thing that gets initialized:
 
 ```python
 # main_revops_writer.py → write_all()
 self.context = build_simulation_context(num_random=4)
 ```
 
-Keyin bu `context` ob'ekt barcha 7 ta integratsiyaga uzatiladi:
+This `context` object is then passed into all 7 integrations:
 
 ```
 SimulationContext
-├── fixed_personas   → 5 ta "hikoya" kompaniyasi (har kuni bir xil)
-└── random_personas  → 4 ta tasodifiy yangi kompaniya (organik o'sish imitatsiyasi)
+├── fixed_personas   → 5 "story-driven" companies (fixed every day)
+└── random_personas  → 4 random new companies (simulating organic growth daily)
 ```
 
 ---
 
-## 3. 5 ta Asosiy "Hikoya" Kompaniyasi (Fixed Personas)
+## 3. The 5 "Story-Driven" Companies (Fixed Personas)
 
-Har bir persona real hayotdagi B2B SaaS lifecycle bosqichlaridan birini ifodalaydi.
+Each persona represents a common lifecycle stage in a real B2B SaaS startup.
 
-### 🔴 Acme Corp — "Jim Kelayotgan Mijoz" (`at_risk` / `reports_export_blocker`)
+### 🔴 Acme Corp — "The Silent At-Risk Customer" (`at_risk` / `reports_export_blocker`)
 
-**Real hayotdagi vaziyat:**  
-Acme Corp 6 oy avval `Business` planiga o'tgan va $399/oy to'laydi. Oxirgi 14 kunda ularning moliya direktori har kuni "Reports Export" tugmasini bosganda — sahifa 10-15 sekund yuklanadi va bo'sh CSV fayl yuklab olinadi. Uchinchi marta IT'ga murojaat qildi. Bugun ertalab CEO'ga xabar yubordi: "Agar bu to'g'rilanmasa, keyingi oy obunani to'xtatamiz."
+**Real-world scenario:**  
+Acme Corp upgraded to the `Business` plan 6 months ago, paying $399/mo. Over the last 14 days, whenever the CFO clicks "Export Report", the page loads for 10-15 seconds and downloads a blank CSV. The CFO has complained to IT three times. This morning, she messaged her CEO: "If they don't fix this bug by next month, we are canceling our subscription."
 
-**Kodda bu qanday ko'rinadi:**
+**How it looks in the code:**
 
 *PostHog (Layer 4):*
 ```python
@@ -58,11 +58,11 @@ events.append({
     'event': 'Feature Used',
     'properties': {
         'feature_action': 'export_failed_error',
-        'load_time_ms':   random.randint(8000, 20000),  # 8-20 sekund
+        'load_time_ms':   random.randint(8000, 20000),  # 8-20 seconds!
         'company':        'Acme Corp',
     }
 })
-# Bu 14 kun davomida har kuni takrorlanadi
+# Inject this pattern consistently over a 14-day history
 ```
 
 *Freshdesk (Layer 5):*
@@ -73,27 +73,27 @@ tickets = [
     ("export_failed_error keeps appearing — 3rd time this week", priority=3),
     ("Cannot export custom date range to CSV — blank file", priority=3),
 ]
-# Kontakt email: sarah@acmecorp.com (PostHog bilan bir xil!)
+# Contact email: sarah@acmecorp.com (Identical to their PostHog ID!)
 ```
 
 *HubSpot (Layer 2):*
 ```
-deal_stage: closedwon (ular to'layapti)
+deal_stage: closedwon (They are currently paying)
 lifecyclestage: customer
-hs_priority: high (at_risk holatiga ko'ra)
+hs_priority: high (Due to at_risk lifecycle)
 ```
 
-**Analytics Engineerning aytadigan xulosasi:**  
-> "Acme Corp HubSpot'da `closedwon` ko'rinsa ham, PostHog'da 14 kunlik `export_failed_error` signalini va Freshdesk'da 3 ta URGENT ticketni tushunmasak, churn uni server muammosi emas balki 'narx yuqori' sifatida yozilgan bo'lardi."
+**What the Analytics Engineer will conclude during analysis:**  
+> "Even though Acme Corp looks like a healthy `closedwon` customer in HubSpot, if we can't join their 14-day `export_failed_error` spike in PostHog with the 3 URGENT tickets in Freshdesk, any resulting churn would incorrectly be logged by Sales as 'Pricing Too High' instead of a critical product bug."
 
 ---
 
-### 🟡 TechStart Inc — "Sales Qotib Qolgan" (`stalled` / `jira_integration_blocker`)
+### 🟡 TechStart Inc — "The Stalled Deal" (`stalled` / `jira_integration_blocker`)
 
-**Real hayotdagi vaziyat:**  
-TechStart 35 kishilik DevOps startup. CTO Mike Williams 2 hafta avval demo ko'rdi, ixlos bildirdi. Lekin jamoasi butunlay Jira'da ishlaydi — vazifalar, sprintlar, PR tracking. 2-tomonlama Jira integratsiyasiz platformani qabul qilishadi degan so'z yo'q. Sales rep Sarah Kim "narxni tushirib bersak bo'ladimi?" deb o'ylaydi — lekin asl muammo bu emas.
+**Real-world scenario:**  
+TechStart is a 35-person DevOps startup. Their CTO, Mike Williams, saw a demo two weeks ago and loved the UI. However, his team lives entirely in Jira—tasks, sprints, PR tracking. Without a 2-way Jira integration, they refuse to adopt the platform. The Sales Rep (Sarah Kim) thinks she can win if she drops the price. But the real issue is missing functionality.
 
-**Kodda:**
+**How it looks in the code:**
 
 *Call Transcripts (Layer 7):*
 ```python
@@ -112,38 +112,38 @@ Mike Williams: Hard blocker. Our devs live in Jira. Without 2-way sync
 
 *PostHog (Layer 4):*
 ```python
-# 10-30 kun oldin: integration sahifasida aylanib yurgan
+# 10-30 days ago: They browsed the integrations page heavily
 events = [("integrations_connect", days_ago=10_to_30)]
-# Oxirgi 10 kun: hech qanday session yo'q (disengaged)
+# Last 10 days: Zero sessions (Completely disengaged)
 ```
 
 *HubSpot (Layer 2):*
 ```
-deal_stage:     presentationscheduled  (demo bo'ldi, orqaga ketdi)
+deal_stage:     presentationscheduled (Stuck here)
 hs_priority:    high
 dealtype:       newbusiness
 ```
 
-**Analytics Engineerning xulosasi:**  
-> "HubSpot'da bu deal 'stalled' ko'rinadi, cause bosh qator yo'q. Call transcript'da esa aniq: '$0 da yo'qotilayotgan $17,880 ARR — sababchi Jira integratsiyasining yo'qligi.' Product roadmap'ga kirishi kerak."
+**Analytics Engineer's takeaway:**  
+> "In HubSpot, this deal looks 'stalled' without a root cause. But cross-referencing with the Call Transcript data reveals exactly why: 'Revenue lost due to missing Jira integration: $17,880 ARR.' This data is exactly what Product needs to prioritize the roadmap."
 
 ---
 
-### 🟢 DataFlow LLC — "Yaxshi yo'l, Kengayish" (`active` / `happy_path`)
+### 🟢 DataFlow LLC — "The Happy Path to Expansion" (`active` / `happy_path`)
 
-**Real hayotdagi vaziyat:**  
-DataFlow 60 kishilik SaaS kompaniya, 8 oy avval Professional planga o'tgan. Har hafta Platform'dan hisob-kitob chiqarib, CEO'ga yuboradi. Moliya direktori 10 minut tejayapti, deydi. Endi 5 ta yangi kishi qo'shmoqchi va Business planga o'tmoqchi.
+**Real-world scenario:**  
+DataFlow is a 60-person SaaS company that upgraded to the Professional plan 8 months ago. Every week, the CFO exports a beautifully generated report from the platform and saves 10 hours a week. Now, they want to add 5 more users and upgrade to the Enterprise/Business tier.
 
-**Kodda:**
+**How it looks in the code:**
 
 *PostHog (Layer 4):*
 ```python
-# So'nggi 30 kun davomida har kuni:
+# Excellent daily engagement
 events = [
     ("Session Started", ...),
-    ("reports_export", load_time_ms=200-800),  # tez, muvaffaqiyatli
+    ("reports_export", load_time_ms=200-800),  # Fast, successful exports
 ]
-# Har 3 kunda: Report Generated
+# Every 3 days: Successfully generates a report
 events.append({"event": "Report Generated", "report_type": "revenue"})
 ```
 
@@ -162,7 +162,7 @@ Emily Brown: Absolutely. Can we talk about enterprise pricing for next year?
 
 *Freshdesk (Layer 5):*
 ```python
-# Faqat 1 ta past prioritetli savol: "hebdomadal report qanday yuboriladi?"
+# Only 1 low priority non-technical question
 priority = 1   # Low
 status   = 5   # Closed
 tags     = ["feature_question", "happy_customer"]
@@ -170,12 +170,12 @@ tags     = ["feature_question", "happy_customer"]
 
 ---
 
-### ⚫ CloudNine Co — "Yo'qolgan Deal" (`churned` / `budget_cut`)
+### ⚫ CloudNine Co — "The Silent Loss" (`churned` / `budget_cut`)
 
-**Real hayotdagi vaziyat:**  
-CloudNine bilan 2 oy yaxshi muloqot bo'ldi. Shartnoma muzokaraga kirdi. Keyin Q3 boshida moliya bo'limi "hamma yangi xarajatlarni to'xtatdi". Sales rep ularni yo'qotdi va HubSpot'da "Closed Lost — Price Too High" deb yozdi. Aslida narx emas, Q3 byudjet muzlatishi bo'ldi.
+**Real-world scenario:**  
+There was great communication with CloudNine for two months. They reached the contract negotiation phase. Then, at the start of Q3, their Finance department enacted a company-wide freeze on all new software spending. The Sales Rep lost them and marked the HubSpot deal as "Closed Lost — Price Too High". In reality, it wasn't the price—the budget was simply frozen.
 
-**Kodda:**
+**How it looks in the code:**
 
 *Call Transcripts (Layer 7):*
 ```python
@@ -186,50 +186,46 @@ next_step = "No action — closed lost"
 
 *PostHog (Layer 4):*
 ```python
-# Oxirgi event: 50 kun oldin, bitta session
-# Undan keyin hech narsa → "ghost account"
+# Last seen 50 days ago; zero sessions since. (A complete ghost account)
 old_date = datetime.now() - timedelta(days=50)
 events = [("Session Started", timestamp=old_date)]
-# continue → boshqa event yo'q
 ```
 
 *Freshdesk (Layer 5):*
 ```
-# Hech qanday ticket generatsiya qilinmaydi
-# stalled / churned / new_lead → no tickets
+# Zero tickets generated. They faded away quietly.
 ```
 
 ---
 
-### 🔵 DevOps Pro — "Yangi Lead, Bugun Kirgan" (`new_lead` / `new_onboard`)
+### 🔵 DevOps Pro — "The Brand New Inbound Lead" (`new_lead` / `new_onboard`)
 
-**Real hayotdagi vaziyat:**  
-James Garcia — 15 kishilik startapning Founder'i. LinkedIn'da reklama ko'rdi, saytga kirdi, demo so'radi. Bugun birinchi discovery call bo'ldi. Hali hech narsa to'lamagan, hali trial ham boshmagan.
+**Real-world scenario:**  
+James Garcia is the Founder of a 15-person startup. He saw a LinkedIn native ad, clicked it, signed up, and requested a demo. Today was the first discovery call. No money has changed hands, no trial has started yet.
 
-**Kodda:**
+**How it looks in the code:**
 
 *Meta Ads (Layer 1):*
 ```python
-# TODAY: Lead + CompleteRegistration event
+# TODAY: Lead + CompleteRegistration event triggered
 event_name = "Lead"       → value $100
 event_name = "CompleteRegistration" → value $500
 ```
 
 *PostHog (Layer 4):*
 ```python
-# Faqat bugun, 3 ta event:
+# Exactly 3 events today:
 events = [
     "User Signed Up"       → signup_source: "paid_ad"
-    "Onboarding Started"   → (bugun)
+    "Onboarding Started"   → (Today)
     "Pricing Page Viewed"  → plan_seen: "professional"
 ]
-# Boshqa hech narsa yo'q — birinchi kun
 ```
 
 *HubSpot (Layer 2):*
 ```
-deal_stage:   appointmentscheduled
-dealtype:     newbusiness
+deal_stage:     appointmentscheduled
+dealtype:       newbusiness
 lifecyclestage: lead
 ```
 
@@ -242,48 +238,47 @@ next_step = "Schedule full demo with broader team"
 
 ---
 
-## 4. Har kunlik ishga tushish oqimi
+## 4. The Daily Execution Workflow
 
 ```
-00:00 UTC — GitHub Actions
+00:00 UTC — GitHub Actions triggers
     │
     ▼
 build_simulation_context(num_random=4)
     │
-    ├── 5 fixed_personas (BIR XIL har kuni)
-    └── 4 random_personas (YANGI har kuni → organik o'sish)
+    ├── 5 fixed_personas (IDENTICAL every day, progressing in time)
+    └── 4 random_personas (NEW every day → simulates organic lead growth)
     │
-    ▼ barcha 7 qatlamga uzatiladi
+    ▼ Context is passed down to all 7 Writers
     │
-Layer 1: Meta Ads      → DevOps Pro lead eventi
-Layer 2: HubSpot       → Barcha 9 kompaniya, har xil deal stages
-Layer 3: Stripe        → DataFlow upgrade, Acme active, boshqalar yo'q
+Layer 1: Meta Ads      → Injects DevOps Pro lead event
+Layer 2: HubSpot       → Injects all 9 companies with accurate deal stages
+Layer 3: Stripe        → Injects DataFlow upgrade, Acme subscriptions (Skips leads)
 Layer 4: PostHog       → Acme: export errors | DataFlow: healthy | CloudNine: ghost
-Layer 5: Freshdesk     → Acme: 3 URGENT tickets | DataFlow: 1 low prio
-Layer 6: Supabase      → Barcha persona va random kompaniyalar
+Layer 5: Freshdesk     → Acme: 3 URGENT tickets | DataFlow: 1 low priority
+Layer 6: Supabase      → Base entities for all 9 companies
 Layer 7: Transcripts   → TechStart: Jira stall | CloudNine: Q3 lost | DataFlow: won
 ```
 
 ---
 
-## 5. Nima uchun bu tuzilma real hayotga mos?
+## 5. Why Does This Reflect Real-Life Data Engineering?
 
-| Real hayot | Bizning simulyatsiya |
-|-----------|----------------------|
-| CRM'dagi "Lost — Price" ko'pincha noto'g'ri | Call transcript aniq objection'ni tutadi |
-| At-risk mijozlar support'da shovqin ko'taradi | Acme: 3 URGENT ticket + 14 kun export xatosi |
-| Churn ko'pincha bug'dan, narxdan emas | PostHog + Freshdesk correlation |
-| Muvaffaqiyatli mijozlar upsell uchun ochiq | DataFlow: closing call bilan kengayish |
-| Yangi leadlar bitta kunda hamma joyda paydo bo'ladi | DevOps Pro: Meta + HubSpot + PostHog |
+| Conventional Reality in RevOps | What Our Simulation Does |
+|--------------------------------|--------------------------|
+| Salesmen logging "Lost - Price" is often lazy/inaccurate | Call Transcripts parse the exact objection via NLP models. |
+| Customer Churn is usually a product bug, not a pricing issue | PostHog (Load times/Errors) + Freshdesk correlation isolates product risk. |
+| Successful users are the easiest expansion targets | DataFlow produces high feature usage + closing calls for seat upgrades. |
+| Top-of-Funnel signals appear across platforms simultaneously | DevOps Pro appears in Meta Ads, HubSpot, and PostHog on the same day. |
 
 ---
 
-## 6. Warehouse'ga olib borganda
+## 6. The End Goal: The Analytics Engineering Playground
 
-Endi siz bu simulyatsiyadan kelgan data'ni BigQuery yoki Snowflake'ga Meltano yoki Airbyte bilan joylashtirsangiz, dbt'da quyidagi JOIN'lar ishlaydi:
+Once you pipe this daily simulation data into BigQuery or Snowflake using Meltano or Airbyte, you can finally write dbt models (and test joins) exactly like this:
 
 ```sql
--- Misol: At-Risq Kompaniyalarni Aniqlash
+-- Example: Automated At-Risk Customer Detection
 SELECT
     h.company_name,
     h.deal_stage,
@@ -306,8 +301,8 @@ HAVING COUNT(p.event) > 0 OR COUNT(f.ticket_id) > 0
 ORDER BY export_errors_14d DESC;
 ```
 
-Bu query'ni ishlatishingiz mumkinligi uchun `company_domain` va `company_name` barcha keylarda bir xil ekanligi muhim — buni `SimulationContext` kafolatlaydi.
+For this query to return rows, `company_domain` and `company_name` must perfectly match across 4 different platforms—which `SimulationContext` legally guarantees for our 5 fixed personas every day.
 
 ---
 
-> **Xulosa:** Bu loyiha "random data generator" emas. Bu — *aniq biznes muammolarni modellash qiluvchi, cross-layer korrelyatsiyani kafolatlaydigan, har kuni organik o'sib boruvchi* A-series Revenue Engine simulyatsiyasidir.
+> **Conclusion:** This repository is not a "random data generator." It is a *context-aware B2B SaaS Revenue Engine*. It models precise business problems, guarantees cross-layer primary-key correlation, and naturally simulates organic, daily pipeline growth.
