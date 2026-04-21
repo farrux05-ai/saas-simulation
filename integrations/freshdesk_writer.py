@@ -107,10 +107,10 @@ TICKET_SUBJECTS = [
     "Custom domain setup assistance",
     "Performance issues with large datasets",
     "Email notifications not being sent",
-    "Report generation timing out",
+    "URGENT: Report generation timing out", # Pattern Injection
     "White label branding not applying",
     "Team member invitation not received",
-    "Data export taking too long",
+    "Data export taking too long and failing", # Pattern Injection
     "Need API documentation for v2",
 ]
 
@@ -121,6 +121,8 @@ TICKET_DESCRIPTIONS = {
         "The {} feature is not working as expected. Expected behavior: {}. Actual behavior: {}.",
         "We're getting a {} error when trying to {}. This is blocking our workflow. Urgency: High.",
         "Performance degradation noticed in {}. Load times have increased from {}s to {}s over the past week.",
+        "Every time we try to use the Reports Export feature, it times out after 10-15 seconds. This is critical for our board meeting.", # Pattern Injection
+        "The export_failed_error keeps popping up in the reports dashboard. How do we fix this?" # Pattern Injection
     ],
     "billing": [
         "We noticed a charge of ${} on our account but we expected ${}. Can you please clarify the difference?",
@@ -135,6 +137,7 @@ TICKET_DESCRIPTIONS = {
         "We need {} functionality for our use case. Currently we have to work around this by {}.",
         "Suggestion: Add {} to the {} section. This would make {} much easier.",
         "Are there plans to support {}? This is a must-have for our team.",
+        "Our team strictly needs customizing our report exports. Right now we have to manually reformat the CSV every week." # Pattern injection
     ],
     "question": [
         "What's the difference between {} and {} in your {} plan?",

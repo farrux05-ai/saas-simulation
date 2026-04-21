@@ -58,15 +58,19 @@ OUTCOMES = {
 }
 
 # Objections that come up in real B2B SaaS sales calls
+# Business Pattern Injection: We deliberately overweight specific product capability
+# objections to demonstrate a disconnect between "generic CRM lost reasons" (e.g. price)
+# and "real product feedback" (e.g. Jira integration missing).
 OBJECTIONS = [
     "pricing is too high",
     "we are already using a competitor",
     "need to get buy-in from the IT team",
     "not the right time — Q3 budget is locked",
-    "we need a SOC 2 certification first",
+    "we need a SOC 2 certification first",  # Key A-Series blocker
     "our team is too small right now",
     "we don't have bandwidth to onboard",
-    "need to evaluate 2–3 more vendors",
+    "we strictly need a 2-way Jira integration before buying", # The "ScaleFlow" secret churn reason
+    "your reporting module doesn't do custom exports" # The churn correlation hint
 ]
 
 # Positive buying signals
@@ -144,21 +148,24 @@ COMPETITORS = ["Salesforce", "HubSpot", "Pipedrive", "Notion", "Monday.com", "sp
 # Transcript generator
 # ---------------------------------------------------------------------------
 
-def _generate_transcript(call_type: str, rep: Dict, prospect_company: str) -> str:
-    """Build a realistic transcript string for a given call type."""
+def _generate_transcript(call_type: str, rep: Dict, prospect_company: str) -> tuple[str, str]:
+    """Build a realistic transcript string and return (transcript, parsed_objection)."""
     template = random.choice(TRANSCRIPT_TEMPLATES[call_type])
     prospect_name = f"{random.choice(['Alex', 'Jordan', 'Morgan', 'Taylor', 'Casey'])} ({prospect_company})"
+    
+    # We select the objection here so we can guarantee the 'outcome' correlates later
+    objection = random.choice(OBJECTIONS)
 
-    return template.format(
+    transcript_text = template.format(
         rep=rep["name"],
         prospect_name=prospect_name,
-        objection=random.choice(OBJECTIONS),
+        objection=objection,
         buying_signal=random.choice(BUYING_SIGNALS),
         pain_point=random.choice(PAIN_POINTS),
         competitor=random.choice(COMPETITORS),
         n=random.randint(5, 50),
         weeks=random.randint(4, 16),
-    )
+    ), objection
 
 
 def generate_call_transcripts(
@@ -196,19 +203,39 @@ def generate_call_transcripts(
             "prospect_company": prospect_company,
             "duration_minutes": duration_min,
             "call_date":        call_date.isoformat(),
-            "transcript":       _generate_transcript(call_type, rep, prospect_company),
-            "objection_raised": random.choice(OBJECTIONS),
-            "buying_signal":    random.choice(BUYING_SIGNALS) if random.random() > 0.3 else None,
-            "next_step":        random.choice([
-                "Send follow-up email",
-                "Schedule next call",
-                "Send contract",
-                "Introduce to CSM",
-                "No action — deal lost",
-            ]),
-            "hubspot_deal_id":  random.choice(hubspot_deal_ids) if hubspot_deal_ids else None,
-            "created_at":       call_date.isoformat(),
         }
+        
+        transcript_text, objection = _generate_transcript(call_type, rep, prospect_company)
+        
+        # --- BUSINESS PATTERN INJECTION: The Correlation Engine ---
+        # Force a "closed_lost" or "stalled" outcome if they hit our specific roadmap blockers.
+        # This allows Analysts to query: "How many deals did we lose purely because of Jira?"
+        outcome = random.choice(OUTCOMES[call_type])
+        if "Jira integration" in objection or "SOC 2" in objection:
+            if call_type in ["negotiation", "closing"]:
+                outcome = "closed_lost"
+            elif call_type in ["discovery", "demo", "follow_up"]:
+                outcome = "stalled"
+                
+        record["outcome"] = outcome
+        record["transcript"] = transcript_text
+        record["objection_raised"] = objection
+        record["buying_signal"] = random.choice(BUYING_SIGNALS) if random.random() > 0.3 else None
+        record["next_step"] = random.choice([
+            "Send follow-up email",
+            "Schedule next call",
+            "Send contract",
+            "Introduce to CSM",
+            "No action — deal lost",
+        ])
+        
+        # Override next_step if explicitly lost
+        if outcome == "closed_lost":
+            record["next_step"] = "No action — closed lost"
+
+        record["hubspot_deal_id"] = random.choice(hubspot_deal_ids) if hubspot_deal_ids else None
+        record["created_at"] = call_date.isoformat()
+        
         records.append(record)
 
     logger.info(f"Generated {len(records)} call transcript records")

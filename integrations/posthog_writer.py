@@ -191,7 +191,7 @@ def generate_sample_posthog_events(num_users: int = 25, days_back: int = 30) -> 
     # Feature categories
     features = {
         'dashboard': ['overview', 'metrics', 'graphs', 'filters'],
-        'reports': ['create', 'export', 'schedule', 'share'],
+        'reports': ['create', 'export', 'schedule', 'share', 'export_failed_error'], # Pattern: Report export failures
         'integrations': ['connect', 'sync', 'disconnect', 'configure'],
         'team': ['invite', 'remove', 'permissions', 'settings'],
         'api': ['generate_key', 'view_docs', 'test_endpoint', 'rate_limits'],
@@ -340,7 +340,9 @@ def generate_sample_posthog_events(num_users: int = 25, days_back: int = 30) -> 
                                 'feature_name': f"{category}_{action}",
                                 'company': company,
                                 'plan': plan,
-                                'session_duration_minutes': random.randint(5, 45)
+                                'session_duration_minutes': random.randint(5, 45),
+                                # Pattern injection: If action is export_failed, note the duration was long
+                                'load_time_ms': random.randint(5000, 15000) if action == 'export_failed_error' else random.randint(100, 1200)
                             },
                             'timestamp': action_time.isoformat()
                         })

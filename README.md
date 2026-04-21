@@ -12,6 +12,24 @@ cross-referenced sandbox data — from the first paid ad click to the closed dea
 
 ---
 
+## 📖 The "ScaleFlow" Use Case (Why this exists)
+
+Imagine **ScaleFlow**, a promising A-Series SaaS. They spend $50k/mo on Meta Ads, their HubSpot is full of leads, but their conversion rate is terrible and churn is spiking. 
+
+**The Analytics Problem (The Blank Space):**
+*   **Sales says:** "We lost the deal because the price is too high." (Recorded in HubSpot).
+*   **Product says:** "Users are logging in, so they must be active." (Recorded in PostHog).
+*   **Support says:** "Ticket volume is up." (Recorded in Freshdesk).
+
+**The Solution (This Engine):**
+By orchestrating this 7-layer data pipeline, an Analytics Engineer can build a `Customer 360` view that reveals the *real* story:
+1.  **Sales Intelligence (Layer 7):** Call transcripts reveal the deal wasn't lost on price; it was stalled because ScaleFlow lacks a **Jira Integration**.
+2.  **Product / Support Correlation (Layers 4 & 5):** The churnspike isn't random. PostHog shows users hitting an `export_failed_error`, and Freshdesk shows urgent tickets about "Reports timing out."
+
+*This script doesn't just generate random data. It generates these exact correlating business patterns across 7 different platforms so you can practice building the queries that solve them.*
+
+---
+
 ## 🏗️ Architecture — 7-Layer Revenue Funnel
 
 ```
@@ -206,9 +224,10 @@ ingestion_practice/
 │   ├── posthog_writer.py          # Layer 4 — Product Analytics
 │   ├── freshdesk_writer.py        # Layer 5 — Support
 │   ├── supabase_writer.py         # Layer 6 — Database / Warehouse
-│   └── call_transcript_writer.py  # Layer 7 — Sales Intelligence (NEW)
+│   └── call_transcript_writer.py  # Layer 7 — Sales Intelligence
 └── utils/
-    └── logger.py
+    ├── logger.py
+    └── customer_360_view.sql      # Example SQL showing how to join the 7 layers
 ```
 
 ---
