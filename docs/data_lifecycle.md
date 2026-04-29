@@ -44,20 +44,21 @@ SimulationContext
 
 Each persona represents a common lifecycle stage in a real B2B SaaS startup.
 
-### 🔴 Acme Corp — "The Silent At-Risk Customer" (`at_risk` / `reports_export_blocker`)
+### 🔴 Acme Corp — "The Silent At-Risk Customer" (`at_risk` / `remediation_fail`)
 
 **Real-world scenario:**  
-Acme Corp upgraded to the `Business` plan 6 months ago, paying $399/mo. Over the last 14 days, whenever the CFO clicks "Export Report", the page loads for 10-15 seconds and downloads a blank CSV. The CFO has complained to IT three times. This morning, she messaged her CEO: "If they don't fix this bug by next month, we are canceling our subscription."
+Acme Corp upgraded to the `Pro` plan 6 months ago, paying $5,000/mo. They strictly need the "Auto-Remediation" feature. However, over the last 14 days, their Terraform PRs for AWS IAM roles have been failing consistently. The CISO is frustrated because they are "paying for automation that doesn't work."
 
 **How it looks in the code:**
 
 *PostHog (Layer 4):*
 ```python
-# posthog_writer.py, scenario == SCENARIO_REPORTS_BLOCKER
+# posthog_writer.py, scenario == SCENARIO_REMEDIATION_FAIL
 events.append({
     'event': 'Feature Used',
     'properties': {
-        'feature_action': 'export_failed_error',
+        'feature_category': 'remediation',
+        'feature_action':   'remediation_failed_error',
         'load_time_ms':   random.randint(8000, 20000),  # 8-20 seconds!
         'company':        'Acme Corp',
     }
@@ -67,10 +68,10 @@ events.append({
 
 *Freshdesk (Layer 5):*
 ```python
-# freshdesk_writer.py, scenario == SCENARIO_REPORTS_BLOCKER
+# freshdesk_writer.py, scenario == SCENARIO_REMEDIATION_FAIL
 tickets = [
-    ("URGENT: Report generation timing out after 10 seconds", priority=4),
-    ("export_failed_error keeps appearing — 3rd time this week", priority=3),
+    ("URGENT: Auto-remediation broke our CI/CD pipeline", priority=4),
+    ("remediation_failed_error keeps appearing on AWS IAM roles", priority=3),
     ("Cannot export custom date range to CSV — blank file", priority=3),
 ]
 # Contact email: sarah@acmecorp.com (Identical to their PostHog ID!)
@@ -88,22 +89,22 @@ hs_priority: high (Due to at_risk lifecycle)
 
 ---
 
-### 🟡 TechStart Inc — "The Stalled Deal" (`stalled` / `jira_integration_blocker`)
+### 🟡 TechStart Inc — "The Stalled Deal" (`stalled` / `gcp_blocker`)
 
 **Real-world scenario:**  
-TechStart is a 35-person DevOps startup. Their CTO, Mike Williams, saw a demo two weeks ago and loved the UI. However, his team lives entirely in Jira—tasks, sprints, PR tracking. Without a 2-way Jira integration, they refuse to adopt the platform. The Sales Rep (Sarah Kim) thinks she can win if she drops the price. But the real issue is missing functionality.
+TechStart is a DevOps-heavy startup. They saw a demo and loved the AWS security features. However, half of their infrastructure is on Google Cloud (GCP). SentinelGuard's GCP scanning is currently in beta. Until full GCP support is parity with AWS, they won't sign the contract.
 
 **How it looks in the code:**
 
 *Call Transcripts (Layer 7):*
 ```python
-# call_transcript_writer.py, scenario == SCENARIO_JIRA_BLOCKER
-objection  = "we strictly need a 2-way Jira integration before buying"
+# call_transcript_writer.py, scenario == SCENARIO_GCP_BLOCKER
+objection  = "we strictly need GCP environment scanning parity"
 outcome    = "stalled"
 transcript = """
 Sarah Kim: Following up from our demo, Mike. Any feedback from the team?
 Mike Williams: The platform looks great, honestly. But we hit a wall — 
-  we strictly need a 2-way Jira integration before buying.
+  we strictly need full GCP support before buying.
 Sarah Kim: Understood. Is this a hard blocker or something we can phase in?
 Mike Williams: Hard blocker. Our devs live in Jira. Without 2-way sync 
   we can't adopt this.
@@ -112,8 +113,8 @@ Mike Williams: Hard blocker. Our devs live in Jira. Without 2-way sync
 
 *PostHog (Layer 4):*
 ```python
-# 10-30 days ago: They browsed the integrations page heavily
-events = [("integrations_connect", days_ago=10_to_30)]
+# 10-30 days ago: They browsed the GCP integrations page heavily
+events = [("integrations_connect_gcp", days_ago=10_to_30)]
 # Last 10 days: Zero sessions (Completely disengaged)
 ```
 
@@ -125,14 +126,14 @@ dealtype:       newbusiness
 ```
 
 **Analytics Engineer's takeaway:**  
-> "In HubSpot, this deal looks 'stalled' without a root cause. But cross-referencing with the Call Transcript data reveals exactly why: 'Revenue lost due to missing Jira integration: $17,880 ARR.' This data is exactly what Product needs to prioritize the roadmap."
+> "In HubSpot, this deal looks 'stalled' without a root cause. But cross-referencing with the Call Transcript data reveals exactly why: 'Revenue lost due to missing GCP support: $60,000 ARR.' This data is exactly what Product needs to prioritize the roadmap."
 
 ---
 
 ### 🟢 DataFlow LLC — "The Happy Path to Expansion" (`active` / `happy_path`)
 
 **Real-world scenario:**  
-DataFlow is a 60-person SaaS company that upgraded to the Professional plan 8 months ago. Every week, the CFO exports a beautifully generated report from the platform and saves 10 hours a week. Now, they want to add 5 more users and upgrade to the Enterprise/Business tier.
+DataFlow upgraded to the `Pro` plan last quarter. They use the platform daily to monitor their multi-cloud risk score. They just passed a SOC2 audit using SentinelGuard's compliance reports and now want to expand to the Enterprise tier for custom policy frameworks.
 
 **How it looks in the code:**
 
@@ -141,10 +142,10 @@ DataFlow is a 60-person SaaS company that upgraded to the Professional plan 8 mo
 # Excellent daily engagement
 events = [
     ("Session Started", ...),
-    ("reports_export", load_time_ms=200-800),  # Fast, successful exports
+    ("compliance_run_audit", load_time_ms=200-800),  # Fast, successful audits
 ]
 # Every 3 days: Successfully generates a report
-events.append({"event": "Report Generated", "report_type": "revenue"})
+events.append({"event": "Report Generated", "report_type": "compliance", "framework": "SOC2"})
 ```
 
 *Call Transcripts (Layer 7):*
@@ -173,7 +174,7 @@ tags     = ["feature_question", "happy_customer"]
 ### ⚫ CloudNine Co — "The Silent Loss" (`churned` / `budget_cut`)
 
 **Real-world scenario:**  
-There was great communication with CloudNine for two months. They reached the contract negotiation phase. Then, at the start of Q3, their Finance department enacted a company-wide freeze on all new software spending. The Sales Rep lost them and marked the HubSpot deal as "Closed Lost — Price Too High". In reality, it wasn't the price—the budget was simply frozen.
+CloudNine reached the contract negotiation phase for a `Pro` subscription. Then, at the start of Q3, their parent company enacted a company-wide freeze on all new security software spending. The budget was simply locked, and the account went ghost.
 
 **How it looks in the code:**
 
@@ -201,7 +202,7 @@ events = [("Session Started", timestamp=old_date)]
 ### 🔵 DevOps Pro — "The Brand New Inbound Lead" (`new_lead` / `new_onboard`)
 
 **Real-world scenario:**  
-James Garcia is the Founder of a 15-person startup. He saw a LinkedIn native ad, clicked it, signed up, and requested a demo. Today was the first discovery call. No money has changed hands, no trial has started yet.
+A security engineer at DevOps Pro saw an ad about "Auto-Remediation", clicked it, signed up, and started the onboarding process today. No money has changed hands yet.
 
 **How it looks in the code:**
 
@@ -218,7 +219,7 @@ event_name = "CompleteRegistration" → value $500
 events = [
     "User Signed Up"       → signup_source: "paid_ad"
     "Onboarding Started"   → (Today)
-    "Pricing Page Viewed"  → plan_seen: "professional"
+    "Pricing Page Viewed"  → plan_seen: "pro"
 ]
 ```
 

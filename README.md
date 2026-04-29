@@ -119,7 +119,7 @@ Both systems use the **exact same** configuration (`config.py`) and integrations
 
 ### Option A: The Real-Time Gateway (Interactive UI)
 ```bash
-python3 saas-body/app.py
+python3 app/app.py
 ```
 *Go to `http://localhost:5050` to experience the live landing page, onboarding wizard, and interactive dashboard.*
 
@@ -152,7 +152,7 @@ python3 main_revops_writer.py --dry-run
 
 ### Where to deploy?
 If you want to host this live as a portfolio piece to show employers/clients:
-1. **Render.com or Railway.app** — Perfect for hosting the `app.py` Flask server. Just set the `Start Command` to `gunicorn -w 2 -b 0.0.0.0:$PORT saas-body.app:app`.
+1. **Render.com or Railway.app** — Perfect for hosting the `app.py` Flask server. Just set the `Start Command` to `gunicorn -w 2 -b 0.0.0.0:$PORT app.app:app`.
 2. **GitHub Actions** — Perfect for hosting the `main_revops_writer.py` daily batch job using cron.
 
 ### Is it safe?

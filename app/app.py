@@ -5,7 +5,7 @@ This is the LIVE WEBHOOK layer of the Revenue Engine.
 
 Architecture:
   main_revops_writer.py   → Daily batch job  → writes historical/simulation data
-  saas-body/app.py        → Real-time events → writes triggered by actual user actions
+  app/app.py        → Real-time events → writes triggered by actual user actions
 
 Both use the SAME config.py and integrations/ layer.
 Both produce data the analytics warehouse can join.
@@ -21,7 +21,7 @@ Endpoints
 
 Run:
   cd /home/farrux/saas-simulation
-  python3 saas-body/app.py
+  python3 app/app.py
 """
 
 import os
