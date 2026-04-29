@@ -72,7 +72,7 @@ OBJECTIONS = [
     "we need a SOC 2 certification first",  # Key A-Series blocker
     "our team is too small right now",
     "we don't have bandwidth to onboard",
-    "we strictly need a 2-way Jira integration before buying", # The "ScaleFlow" secret churn reason
+    "we strictly need GCP environment scanning parity before buying", # The "ScaleFlow" secret churn reason
     "your reporting module doesn't do custom exports" # The churn correlation hint
 ]
 
@@ -184,7 +184,7 @@ def generate_call_transcripts(
     Random extras fill the remainder.
     """
     from utils.simulation_context import (
-        SCENARIO_JIRA_BLOCKER, SCENARIO_BUDGET_CUT,
+        SCENARIO_GCP_BLOCKER, SCENARIO_BUDGET_CUT,
         SCENARIO_HAPPY_PATH, SCENARIO_NEW_ONBOARD
     )
 
@@ -216,15 +216,15 @@ def generate_call_transcripts(
                     hubspot_deal_ids=hubspot_deal_ids,
                 ))
 
-            elif persona.scenario == SCENARIO_JIRA_BLOCKER:
+            elif persona.scenario == SCENARIO_GCP_BLOCKER:
                 # TechStart: follow_up call, stalled on Jira
                 call_date = datetime.now() - timedelta(days=5)
-                objection = "we strictly need a 2-way Jira integration before buying"
+                objection = "we strictly need GCP environment scanning parity before buying"
                 transcript = (
                     f"Sarah Kim: Following up from our demo, {persona.contact_name}. Any feedback from the team?\n"
                     f"{persona.contact_name}: The platform looks great, honestly. But we hit a wall — {objection}.\n"
                     f"Sarah Kim: Understood. Is this a hard blocker or something we can phase in?\n"
-                    f"{persona.contact_name}: Hard blocker for us. Our devs live in Jira. Without 2-way sync we can't adopt this.\n"
+                    f"{persona.contact_name}: Hard blocker for us. Our cloud environment is 50% GCP. Without full scanning we can't adopt this.\n"
                     f"Sarah Kim: I hear you. Let me escalate this to product and come back to you by EOW."
                 )
                 records.append(_make_record(
@@ -233,7 +233,7 @@ def generate_call_transcripts(
                     call_date=call_date, transcript=transcript,
                     objection=objection,
                     buying_signal=None,
-                    next_step="Escalate Jira integration request to product team",
+                    next_step="Escalate GCP scanning request to product team",
                     hubspot_deal_ids=hubspot_deal_ids,
                 ))
 
@@ -264,7 +264,7 @@ def generate_call_transcripts(
                 transcript = (
                     f"James Okafor: {persona.contact_name}, contracts are ready to go!\n"
                     f"{persona.contact_name}: We've been very happy. The reporting feature alone saved us 5 hours a week.\n"
-                    f"James Okafor: Fantastic! Ready to upgrade to the Business plan and add 5 more seats?\n"
+                    f"James Okafor: Fantastic! Ready to upgrade to the Enterprise plan and add 5 more seats?\n"
                     f"{persona.contact_name}: Absolutely. can we talk about enterprise pricing for next year?\n"
                     f"James Okafor: Of course. I'll loop in your CSM today and we'll get that locked in."
                 )
@@ -305,9 +305,9 @@ def generate_call_transcripts(
         
         # --- BUSINESS PATTERN INJECTION: The Correlation Engine ---
         # Force a "closed_lost" or "stalled" outcome if they hit our specific roadmap blockers.
-        # This allows Analysts to query: "How many deals did we lose purely because of Jira?"
+        # This allows Analysts to query: "How many deals did we lose purely because of GCP?"
         outcome = random.choice(OUTCOMES[call_type])
-        if "Jira integration" in objection or "SOC 2" in objection:
+        if "GCP" in objection or "SOC 2" in objection:
             if call_type in ["negotiation", "closing"]:
                 outcome = "closed_lost"
             elif call_type in ["discovery", "demo", "follow_up"]:

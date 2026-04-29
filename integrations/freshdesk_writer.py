@@ -174,7 +174,7 @@ def generate_sample_tickets(
     When context provided, at_risk persona (Acme Corp) generates URGENT
     export-related tickets. Other fixed personas get appropriate ticket volumes.
     """
-    from utils.simulation_context import SCENARIO_REPORTS_BLOCKER, SCENARIO_HAPPY_PATH
+    from utils.simulation_context import SCENARIO_REMEDIATION_FAIL, SCENARIO_HAPPY_PATH
 
     tickets = []
 
@@ -185,12 +185,12 @@ def generate_sample_tickets(
             last  = persona.contact_name.split()[-1]
             email = persona.contact_email
 
-            if persona.scenario == SCENARIO_REPORTS_BLOCKER:
-                # Acme Corp: 3 urgent report-export tickets this run
+            if persona.scenario == SCENARIO_REMEDIATION_FAIL:
+                # Acme Corp: 3 urgent auto-remediation tickets this run
                 for msg, prio in [
-                    ("URGENT: Report generation timing out after 10 seconds — affecting board meeting", 4),
-                    ("The export_failed_error keeps appearing on reports page — 3rd time this week", 3),
-                    ("Cannot export custom date range report to CSV — blank file downloaded", 3),
+                    ("URGENT: Auto-remediation script failed on AWS IAM roles", 4),
+                    ("The remediation_failed_error keeps appearing on CI/CD pipeline — 3rd time this week", 3),
+                    ("Terraform plan fails with remediation_failed_error on production account", 3),
                 ]:
                     tickets.append({
                         'subject':     msg,
@@ -200,20 +200,20 @@ def generate_sample_tickets(
                         'status':      2,      # Open
                         'source':      2,      # Portal
                         'name':        f"{first} {last}",
-                        'tags':        ['report_export', 'at_risk_customer', 'urgent'],
+                        'tags':        ['auto_remediation', 'at_risk_customer', 'urgent'],
                     })
 
             elif persona.scenario == SCENARIO_HAPPY_PATH:
                 # DataFlow: 1 normal low-priority ticket
                 tickets.append({
-                    'subject':     "Question: how to schedule weekly reports?",
-                    'description': "We love the platform! Is there a way to auto-send reports every Monday?",
+                    'subject':     "Question: how to create custom security policies?",
+                    'description': "We love the platform! Is there a way to create custom policies for GCP scanning?",
                     'email':       email,
-                    'priority':    1,  # Low
-                    'status':      5,  # Closed
-                    'source':      9,  # Email
+                    'priority':    1,      # Low
+                    'status':      5,      # Closed
+                    'source':      2,      # Portal
                     'name':        f"{first} {last}",
-                    'tags':        ['feature_question', 'happy_customer'],
+                    'tags':        ['custom_policy', 'happy_customer'],
                 })
             # stalled / churned / new_lead → no tickets generated
 
