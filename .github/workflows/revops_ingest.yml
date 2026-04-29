@@ -25,8 +25,12 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
+    - name: Debug - List files
+      run: ls -R
+
     - name: Run data ingestion
       env:
+        # ... (secrets remain same)
         HUBSPOT_ACCESS_TOKEN: ${{ secrets.HUBSPOT_ACCESS_TOKEN }}
         HUBSPOT_PORTAL_ID: ${{ secrets.HUBSPOT_PORTAL_ID }}
         STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
@@ -36,7 +40,6 @@ jobs:
         SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        # Mixpanel removed — replaced by PostHog for product analytics
         POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
         POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
         FRESHDESK_DOMAIN: ${{ secrets.FRESHDESK_DOMAIN }}
@@ -45,4 +48,4 @@ jobs:
         META_ACCOUNT_ID: ${{ secrets.META_ACCOUNT_ID }}
         META_PIXEL_ID: ${{ secrets.META_PIXEL_ID }}
         META_TEST_EVENT_ID: ${{ secrets.META_TEST_EVENT_ID }}
-      run: python main_revops_writer.py --all --num-random 4
+      run: python main_revops_writer.py --help
