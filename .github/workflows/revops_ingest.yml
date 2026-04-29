@@ -1,4 +1,4 @@
-name: RevOps Data Ingestion
+name: DEBUG - RevOps Ingestion
 
 on:
   schedule:
