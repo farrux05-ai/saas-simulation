@@ -1,6 +1,7 @@
 # Core dependencies
 requests>=2.31.0
 python-dotenv>=1.0.0
+gunicorn>=21.2.0
 
 # Web server (app/app.py)
 flask>=3.0.0
@@ -9,6 +10,8 @@ flask-cors>=4.0.0
 # Platform-specific SDKs
 stripe>=7.0.0
 supabase>=2.0.0
+posthog>=3.0.0
+gunicorn>=21.2.0
 
 # Utilities
 python-dateutil>=2.8.2
