@@ -189,7 +189,7 @@ def generate_sample_posthog_events(
       - new_lead (DevOps Pro): Signup + Onboarding events only (first day)
     """
     from utils.simulation_context import (
-        SCENARIO_REPORTS_BLOCKER, SCENARIO_JIRA_BLOCKER,
+        SCENARIO_REMEDIATION_FAIL, SCENARIO_GCP_BLOCKER,
         SCENARIO_HAPPY_PATH, SCENARIO_BUDGET_CUT, SCENARIO_NEW_ONBOARD
     )
 
@@ -197,17 +197,17 @@ def generate_sample_posthog_events(
     user_properties = []
 
     companies = ['Acme Corp', 'TechStart Inc', 'DataFlow LLC', 'CloudNine Co', 'DevOps Pro', 'ScaleUp Ltd']
-    plans = ['free', 'starter', 'professional', 'enterprise']
-    roles = ['admin', 'user', 'manager', 'developer', 'analyst']
+    plans = ['free', 'starter', 'pro', 'enterprise']
+    roles = ['admin', 'user', 'manager', 'devops', 'ciso']
 
-    # Feature categories
+    # Feature categories (CSPM Specific)
     features = {
-        'dashboard': ['overview', 'metrics', 'graphs', 'filters'],
-        'reports': ['create', 'export', 'schedule', 'share', 'export_failed_error'],
-        'integrations': ['connect', 'sync', 'disconnect', 'configure'],
-        'team': ['invite', 'remove', 'permissions', 'settings'],
-        'api': ['generate_key', 'view_docs', 'test_endpoint', 'rate_limits'],
-        'settings': ['profile', 'billing', 'notifications', 'security']
+        'dashboard': ['overview', 'risk_score', 'attack_paths', 'filters'],
+        'compliance': ['run_audit', 'export_pdf', 'cis_benchmark', 'soc2_report', 'export_failed_error'],
+        'integrations': ['connect_aws', 'connect_gcp', 'jira_sync', 'disconnect'],
+        'remediation': ['view_pr', 'merge_fix', 'rollback', 'remediation_failed_error'],
+        'inventory': ['view_assets', 'filter_s3', 'iam_analyzer', 'rate_limits'],
+        'settings': ['profile', 'billing', 'custom_framework', 'security']
     }
 
     # ------------------------------------------------------------------
@@ -249,17 +249,17 @@ def generate_sample_posthog_events(
                 ]
                 continue
 
-            if persona.scenario == SCENARIO_REPORTS_BLOCKER:
-                # Acme Corp: at_risk — heavy report export failures in last 14 days
+            if persona.scenario == SCENARIO_REMEDIATION_FAIL:
+                # Acme Corp: at_risk — heavy remediation failures in last 14 days
                 for day_offset in range(14):
                     ts = (datetime.now() - timedelta(days=day_offset)).isoformat()
                     events.append({'event': 'Session Started', 'distinct_id': uid, 'properties': {'company': persona.company_name, 'plan': persona.plan_name}, 'timestamp': ts})
                     events.append({
                         'event': 'Feature Used', 'distinct_id': uid,
                         'properties': {
-                            'feature_category': 'reports',
-                            'feature_action':   'export_failed_error',
-                            'feature_name':     'reports_export_failed_error',
+                            'feature_category': 'remediation',
+                            'feature_action':   'remediation_failed_error',
+                            'feature_name':     'remediation_failed_error',
                             'company':          persona.company_name,
                             'plan':             persona.plan_name,
                             'load_time_ms':     random.randint(8000, 20000),  # brutally slow
@@ -268,29 +268,29 @@ def generate_sample_posthog_events(
                     })
                 continue
 
-            if persona.scenario == SCENARIO_JIRA_BLOCKER:
+            if persona.scenario == SCENARIO_GCP_BLOCKER:
                 # TechStart: stalled — onboarded fine but no deep feature usage
-                # They tried integrations, couldn't find Jira, dropped off
+                # They tried integrations, couldn't find GCP, dropped off
                 for day_offset in range(10, 30):
                     ts = (datetime.now() - timedelta(days=day_offset)).isoformat()
                     events.append({'event': 'Session Started', 'distinct_id': uid, 'properties': {'company': persona.company_name, 'plan': 'trial'}, 'timestamp': ts})
                     events.append({'event': 'Feature Used', 'distinct_id': uid,
-                        'properties': {'feature_category': 'integrations', 'feature_action': 'connect', 'feature_name': 'integrations_connect', 'company': persona.company_name, 'plan': 'trial', 'load_time_ms': 400},
+                        'properties': {'feature_category': 'integrations', 'feature_action': 'connect_gcp', 'feature_name': 'integrations_connect_gcp', 'company': persona.company_name, 'plan': 'trial', 'load_time_ms': 400},
                         'timestamp': ts})
                 # Last 10 days: zero sessions (disengaged)
                 continue
 
             if persona.scenario == SCENARIO_HAPPY_PATH:
-                # DataFlow: healthy — lots of sessions, many reports generated
+                # DataFlow: healthy — lots of sessions, many audits generated
                 for day_offset in range(days_back):
                     ts = (datetime.now() - timedelta(days=day_offset)).isoformat()
                     events.append({'event': 'Session Started', 'distinct_id': uid, 'properties': {'company': persona.company_name, 'plan': persona.plan_name}, 'timestamp': ts})
                     events.append({'event': 'Feature Used', 'distinct_id': uid,
-                        'properties': {'feature_category': 'reports', 'feature_action': 'export', 'feature_name': 'reports_export', 'company': persona.company_name, 'plan': persona.plan_name, 'load_time_ms': random.randint(200, 800)},
+                        'properties': {'feature_category': 'compliance', 'feature_action': 'run_audit', 'feature_name': 'compliance_run_audit', 'company': persona.company_name, 'plan': persona.plan_name, 'load_time_ms': random.randint(200, 800)},
                         'timestamp': ts})
                     if day_offset % 3 == 0:  # every 3 days
                         events.append({'event': 'Report Generated', 'distinct_id': uid,
-                            'properties': {'report_type': 'revenue', 'export_format': 'csv', 'date_range': '30d'},
+                            'properties': {'report_type': 'compliance', 'export_format': 'pdf', 'framework': 'SOC2'},
                             'timestamp': ts})
                 continue
 

@@ -46,11 +46,11 @@ STAGE_WON        = "won"
 STAGE_CHURNED    = "churned"
 
 # Scenario tags drive which *patterns* get injected into each layer
-SCENARIO_REPORTS_BLOCKER = "reports_export_blocker"   # Acme: export errors
-SCENARIO_JIRA_BLOCKER    = "jira_integration_blocker" # TechStart: sales stall
-SCENARIO_HAPPY_PATH      = "happy_path"               # DataFlow: expanding
-SCENARIO_BUDGET_CUT      = "budget_cut"               # CloudNine: churned
-SCENARIO_NEW_ONBOARD     = "new_onboard"              # DevOps: new lead
+SCENARIO_REMEDIATION_FAIL = "auto_remediation_fail"    # Acme: IAM fix errors
+SCENARIO_GCP_BLOCKER      = "gcp_support_blocker"      # TechStart: sales stall
+SCENARIO_HAPPY_PATH       = "happy_path"               # DataFlow: expanding
+SCENARIO_BUDGET_CUT       = "budget_cut"               # CloudNine: churned
+SCENARIO_NEW_ONBOARD      = "new_onboard"              # DevOps: new lead
 
 
 @dataclass
@@ -67,18 +67,18 @@ class CompanyPersona:
 
     # Lifecycle state (drives HubSpot stage, Stripe status, Supabase status)
     lifecycle_stage: str                   # e.g. "at_risk"
-    scenario:        str                   # e.g. "reports_export_blocker"
+    scenario:        str                   # e.g. "auto_remediation_fail"
     is_fixed:        bool = True           # False = randomly generated extra
 
     # Billing (drives Stripe plan + Supabase MRR)
-    mrr:             float = 199.0
+    mrr:             float = 5000.0
     billing_cycle:   str   = "monthly"
-    plan_name:       str   = "professional"
+    plan_name:       str   = "pro"
 
     # Primary contact (used by HubSpot contact, Freshdesk, PostHog user)
     contact_name:    str   = ""
     contact_email:   str   = ""
-    contact_title:   str   = "VP of Operations"
+    contact_title:   str   = "CISO"
 
     # Deal state (drives HubSpot deal stage and call transcript call_type)
     deal_stage:      str   = "qualifiedtobuy"
@@ -105,74 +105,74 @@ class CompanyPersona:
 FIXED_PERSONAS: List[CompanyPersona] = [
 
     # 1. ACME CORP — The "Churn In Progress" story
-    #    AT RISK because the Reports Export feature keeps failing.
-    #    PostHog:   export_failed_error events with high load_time_ms
-    #    Freshdesk: "URGENT: Report generation timing out"
+    #    AT RISK because the Auto-Remediation for AWS IAM keeps failing.
+    #    PostHog:   remediation_failed_error events
+    #    Freshdesk: "URGENT: SentinelGuard breaking deployment pipelines"
     #    HubSpot:   Lifecycle = At Risk, deal = closed_won (paying) but health declining
-    #    Stripe:    Active Professional subscription, no missed payments YET
+    #    Stripe:    Active Pro subscription, no missed payments YET
     CompanyPersona(
         company_name    = "Acme Corp",
         domain          = "acmecorp.com",
         industry        = "FinTech",
-        employee_count  = 120,
+        employee_count  = 1200,
         lifecycle_stage = STAGE_AT_RISK,
-        scenario        = SCENARIO_REPORTS_BLOCKER,
-        mrr             = 399.0,
-        plan_name       = "business",
+        scenario        = SCENARIO_REMEDIATION_FAIL,
+        mrr             = 5000.0,
+        plan_name       = "pro",
         billing_cycle   = "monthly",
         contact_name    = "Sarah Johnson",
-        contact_title   = "Head of Finance",
+        contact_title   = "CISO",
         deal_stage      = "closedwon",
     ),
 
     # 2. TECHSTART INC — The "Sales Stall" story
     #    In trial, sales discovery call done. Deal stalled because
-    #    they NEED a 2-way Jira integration that doesn't exist yet.
+    #    they NEED GCP support which is in beta.
     #    HubSpot:   deal_stage = stalled (not closedlost — still hope)
-    #    Call Transcript: objection = "we strictly need Jira integration"
+    #    Call Transcript: objection = "we strictly need GCP environment scanning"
     #    Stripe:    No subscription (still trial via Supabase)
-    #    PostHog:   Normal onboarding, then low engagement (feature not found)
+    #    PostHog:   Normal onboarding, then low engagement (waiting for GCP feature)
     CompanyPersona(
         company_name    = "TechStart Inc",
         domain          = "techstart.io",
         industry        = "DevOps",
-        employee_count  = 35,
+        employee_count  = 350,
         lifecycle_stage = STAGE_STALLED,
-        scenario        = SCENARIO_JIRA_BLOCKER,
+        scenario        = SCENARIO_GCP_BLOCKER,
         mrr             = 0.0,
-        plan_name       = "trial",
+        plan_name       = "free",
         billing_cycle   = "trial",
         contact_name    = "Mike Williams",
-        contact_title   = "CTO",
+        contact_title   = "Cloud Security Architect",
         deal_stage      = "presentationscheduled",
     ),
 
     # 3. DATAFLOW LLC — The "Happy Path / Expansion" story
-    #    Started on Starter, now upgrading to Professional.
+    #    Started on Starter, now upgrading to Pro for Auto-Remediation.
     #    This is the success case: good onboarding → engaged user → expand.
     #    HubSpot:   closedwon, existingbusiness deal (upsell)
     #    Stripe:    Plan upgrade event, consistent paid invoices
-    #    PostHog:   High session count, Report Generated events, no errors
+    #    PostHog:   High session count, Attack Paths viewed, no errors
     #    Freshdesk: Only 1-2 low priority tickets (normal healthy state)
     CompanyPersona(
         company_name    = "DataFlow LLC",
         domain          = "dataflow.co",
         industry        = "SaaS",
-        employee_count  = 60,
+        employee_count  = 600,
         lifecycle_stage = STAGE_ACTIVE,
         scenario        = SCENARIO_HAPPY_PATH,
-        mrr             = 149.0,
-        plan_name       = "professional",
+        mrr             = 1000.0,
+        plan_name       = "starter",
         billing_cycle   = "annual",
         contact_name    = "Emily Brown",
-        contact_title   = "CEO",
+        contact_title   = "VP of Engineering",
         deal_stage      = "closedwon",
     ),
 
     # 4. CLOUDNINE CO — The "Lost Deal / Churned" story
-    #    Q3 budget freeze. Deal reached negotiation stage but finance said no.
+    #    Q3 budget freeze. Deal reached negotiation stage but finance said no to CSPM tool.
     #    HubSpot:   closedlost (reason: budget_cut)
-    #    Call Transcript: outcome = closed_lost, objection = "Q3 budget is locked"
+    #    Call Transcript: outcome = closed_lost, objection = "Using native AWS Security Hub for now"
     #    Stripe:    No subscription (or cancelled if existed)
     #    PostHog:   Last active 45+ days ago → zero recent events
     #    Freshdesk: No new tickets
@@ -180,19 +180,19 @@ FIXED_PERSONAS: List[CompanyPersona] = [
         company_name    = "CloudNine Co",
         domain          = "cloudnine.dev",
         industry        = "E-commerce",
-        employee_count  = 80,
+        employee_count  = 800,
         lifecycle_stage = STAGE_CHURNED,
         scenario        = SCENARIO_BUDGET_CUT,
         mrr             = 0.0,
         plan_name       = "free",
         billing_cycle   = "none",
         contact_name    = "David Jones",
-        contact_title   = "VP of Engineering",
+        contact_title   = "Director of Infrastructure",
         deal_stage      = "closedlost",
     ),
 
     # 5. DEVOPS PRO — The "New Lead" story
-    #    Just came in via a Meta Ad (LinkedIn-style). Booked a discovery call.
+    #    Just came in via a Free Audit form (LinkedIn-style ad). Booked a discovery call.
     #    Meta Ads:  Lead + CompleteRegistration events today
     #    HubSpot:   New contact + company, deal = appointmentscheduled
     #    PostHog:   Signup event + Onboarding Started (first session today)
@@ -202,14 +202,14 @@ FIXED_PERSONAS: List[CompanyPersona] = [
         company_name    = "DevOps Pro",
         domain          = "devopspro.com",
         industry        = "Technology",
-        employee_count  = 15,
+        employee_count  = 150,
         lifecycle_stage = STAGE_NEW_LEAD,
         scenario        = SCENARIO_NEW_ONBOARD,
         mrr             = 0.0,
         plan_name       = "free",
         billing_cycle   = "none",
         contact_name    = "James Garcia",
-        contact_title   = "Founder",
+        contact_title   = "Lead Security Engineer",
         deal_stage      = "appointmentscheduled",
     ),
 ]
@@ -220,29 +220,29 @@ FIXED_PERSONAS: List[CompanyPersona] = [
 # ---------------------------------------------------------------------------
 
 _RANDOM_COMPANIES = [
-    ("Helix Analytics",  "helixanalytics.io",  "MarTech",    45),
-    ("Orion SaaS",       "orionsaas.com",       "SaaS",       22),
-    ("Vectora AI",       "vectora.ai",          "AI/ML",      30),
-    ("Meridian HR",      "meridianhr.com",      "HRTech",     70),
-    ("Apex Logistics",   "apexlogistics.co",    "Logistics",  200),
-    ("Buildify",         "buildify.dev",        "DevTools",   12),
-    ("ScaleUp Ltd",      "scaleup.io",          "FinTech",    55),
-    ("Prism Tech",       "prismtech.com",       "EdTech",     40),
-    ("Zephyr Cloud",     "zephyrcloud.io",      "Cloud",      18),
-    ("Forge Systems",    "forgesystems.com",    "Security",   90),
+    ("Helix Secure",     "helixsecure.io",     "Cybersecurity", 450),
+    ("Orion Cloud",      "orioncloud.com",      "SaaS",       220),
+    ("Vectora Pay",      "vectorapay.ai",       "FinTech",    300),
+    ("Meridian Health",  "meridianhealth.com",  "Healthcare", 700),
+    ("Apex Systems",     "apexsystems.co",      "Logistics",  1200),
+    ("Buildify API",     "buildify.dev",        "DevTools",   120),
+    ("ScaleUp Bank",     "scaleup.io",          "FinTech",    550),
+    ("Prism Data",       "prismdata.com",       "DataOps",    400),
+    ("Zephyr Network",   "zephyrnet.io",        "Telecom",    180),
+    ("Forge Defend",     "forgedefend.com",     "Defense",    900),
 ]
 
 _RANDOM_FIRST  = ["Alex", "Jordan", "Morgan", "Taylor", "Casey", "Sam", "Riley"]
 _RANDOM_LAST   = ["Lee", "Kim", "Park", "Patel", "Chen", "Singh", "Okafor"]
-_RANDOM_TITLES = ["CEO", "CTO", "VP of Sales", "Head of Product", "COO"]
+_RANDOM_TITLES = ["CISO", "VP of Engineering", "Security Architect", "DevSecOps Lead", "CTO"]
 
 
 def _make_random_persona() -> CompanyPersona:
     company_name, domain, industry, emp = random.choice(_RANDOM_COMPANIES)
     first = random.choice(_RANDOM_FIRST)
     last  = random.choice(_RANDOM_LAST)
-    plan  = random.choice(["starter", "professional", "business"])
-    mrr_map = {"starter": 49.0, "professional": 149.0, "business": 399.0}
+    plan  = random.choice(["starter", "pro", "enterprise"])
+    mrr_map = {"starter": 1000.0, "pro": 5000.0, "enterprise": 12000.0}
     stage = random.choice([STAGE_TRIAL, STAGE_ACTIVE, STAGE_AT_RISK])
     deal  = random.choice([
         "appointmentscheduled", "qualifiedtobuy",

@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SentinelGuard AI — Security Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #080c14; --bg2: #0d1320; --bg3: #111827;
+  --surface: #151f30; --surface2: #1a2740;
+  --border: rgba(56,139,255,0.12); --border2: rgba(56,139,255,0.22);
+  --accent: #3b82f6; --accent2: #60a5fa; --accent3: #93c5fd;
+  --green: #10b981; --green2: #34d399; --red: #ef4444; --amber: #f59e0b;
+  --text: #f1f5f9; --text2: #94a3b8; --text3: #64748b;
+  --font-display: 'Syne', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --font-body: 'Inter', sans-serif;
+}
+body { background: var(--bg); color: var(--text); font-family: var(--font-body); display: flex; height: 100vh; overflow: hidden; }
+
+/* NAVBAR */
+.topbar { position: fixed; top: 0; left: 0; right: 0; height: 60px; background: rgba(8,12,20,0.95); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; z-index: 100; backdrop-filter: blur(10px); }
+.logo { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--text); text-decoration: none; }
+.logo-icon { width: 26px; height: 26px; background: var(--accent); border-radius: 7px; display: flex; align-items: center; justify-content: center; }
+.logo-icon svg { width: 14px; height: 14px; stroke: white; fill: none; stroke-width: 2.5; }
+.user-profile { display: flex; align-items: center; gap: 12px; }
+.user-info { text-align: right; }
+.user-name { font-size: 13px; font-weight: 500; color: var(--text); }
+.user-company { font-size: 11px; font-family: var(--font-mono); color: var(--text3); }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--accent2); }
+
+/* SIDEBAR */
+.sidebar { width: 240px; background: var(--bg2); border-right: 1px solid var(--border); height: 100vh; padding-top: 80px; display: flex; flex-direction: column; }
+.nav-item { padding: 12px 24px; font-size: 13px; color: var(--text2); text-decoration: none; display: flex; align-items: center; gap: 12px; transition: all 0.2s; border-left: 3px solid transparent; cursor: pointer; }
+.nav-item:hover { background: rgba(59,130,246,0.05); color: var(--text); }
+.nav-item.active { background: rgba(59,130,246,0.1); color: var(--accent2); border-left-color: var(--accent); }
+.nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+/* MAIN CONTENT */
+.main { flex: 1; padding: 80px 32px 32px; overflow-y: auto; scroll-behavior: smooth; }
+.page-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 24px; }
+.page-title { font-family: var(--font-display); font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+.page-sub { font-size: 13px; color: var(--text3); font-family: var(--font-mono); margin-top: 4px; }
+.env-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; font-family: var(--font-mono); color: var(--text2); }
+.env-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+
+/* STATS GRID */
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+.stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; position: relative; overflow: hidden; }
+.stat-card::after { content: ''; position: absolute; top: 0; right: 0; width: 80px; height: 80px; background: radial-gradient(circle at top right, rgba(59,130,246,0.05), transparent); pointer-events: none; }
+.stat-card.alert { border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.03); }
+.stat-label { font-size: 11px; font-family: var(--font-mono); color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.stat-value { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--text); }
+.stat-value.red { color: var(--red); }
+.stat-value.amber { color: var(--amber); }
+
+/* DASHBOARD GRID */
+.dash-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 32px; }
+.panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; height: 100%; }
+.panel-header { padding: 16px 20px; border-bottom: 1px solid var(--border); font-family: var(--font-display); font-size: 15px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.02); }
+.panel-body { padding: 20px; }
+
+/* TABLE */
+.table { width: 100%; border-collapse: collapse; }
+.table th { text-align: left; padding: 0 0 12px; font-size: 11px; font-family: var(--font-mono); color: var(--text3); font-weight: 400; border-bottom: 1px solid var(--border); }
+.table td { padding: 16px 0; border-bottom: 1px solid rgba(56,139,255,0.05); font-size: 13px; }
+.table tr:last-child td { border-bottom: none; }
+.badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-family: var(--font-mono); font-weight: 500; }
+.badge.critical { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+.badge.high { background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
+.btn-fix { padding: 6px 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--accent2); font-size: 12px; font-family: var(--font-mono); cursor: pointer; transition: all 0.2s; }
+.btn-fix:hover { background: var(--accent); color: white; border-color: var(--accent); }
+
+/* ATTACK PATH (DYNAMIC) */
+#path-container { padding-top: 16px; }
+.path-node { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 8px; margin-bottom: 4px; font-size: 13px; position: relative; border: 1px solid var(--border); background: var(--bg3); }
+.path-node.red { border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.05); }
+.path-icon { width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; background: var(--surface2); }
+.path-node.red .path-icon { background: rgba(239,68,68,0.2); }
+.path-info { flex: 1; }
+.path-title { font-weight: 500; color: var(--text); }
+.path-sub { font-size: 11px; color: var(--text3); font-family: var(--font-mono); margin-top: 2px; }
+.path-arrow { width: 1px; height: 16px; background: var(--border2); margin: 0 0 4px 23px; }
+
+/* COMPLIANCE */
+.comp-item { margin-bottom: 16px; }
+.comp-header { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; font-family: var(--font-mono); }
+.comp-bar { width: 100%; height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.comp-fill { height: 100%; background: var(--accent); transition: width 1s ease-out; }
+.comp-fill.amber { background: var(--amber); }
+
+/* FLOATING BTN */
+.floating-btn { position: fixed; bottom: 32px; right: 32px; background: linear-gradient(135deg, var(--accent) 0%, #1e40af 100%); color: white; padding: 14px 24px; border-radius: 100px; font-size: 14px; font-weight: 600; font-family: var(--font-body); display: flex; align-items: center; gap: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 8px 32px rgba(59,130,246,0.3); transition: all 0.2s; z-index: 90; }
+.floating-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(59,130,246,0.5); }
+
+/* MODAL (PAYWALL) */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 1000; }
+.modal-overlay.show { display: flex; }
+.modal { width: 100%; max-width: 500px; background: var(--bg2); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; position: relative; box-shadow: 0 24px 80px rgba(0,0,0,0.8); }
+.modal-close { position: absolute; top: 16px; right: 16px; width: 32px; height: 32px; border-radius: 50%; background: var(--bg3); border: 1px solid var(--border); color: var(--text2); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; font-size: 18px; z-index: 10; }
+.modal-close:hover { color: var(--text); transform: rotate(90deg); }
+.modal-header { padding: 40px 40px 0; text-align: center; }
+.modal-icon { width: 64px; height: 64px; border-radius: 16px; background: linear-gradient(135deg, rgba(59,130,246,0.2), rgba(37,99,235,0.2)); border: 1px solid rgba(59,130,246,0.3); font-size: 32px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+.modal-title { font-family: var(--font-display); font-size: 24px; font-weight: 800; margin-bottom: 12px; }
+.modal-sub { font-size: 14px; color: var(--text2); line-height: 1.6; }
+.modal-body { padding: 32px 40px 40px; }
+.plan-compare { background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+.plan-row { display: flex; justify-content: space-between; font-size: 13px; padding: 10px 0; border-bottom: 1px solid rgba(56,139,255,0.05); }
+.plan-row:last-child { border-bottom: none; }
+.plan-val { font-family: var(--font-mono); font-weight: 600; }
+.val-no { color: var(--text3); }
+.val-yes { color: var(--green2); }
+.btn-upgrade { width: 100%; padding: 16px; background: var(--accent); border: none; border-radius: 10px; color: white; font-size: 16px; font-weight: 700; font-family: var(--font-body); cursor: pointer; transition: all 0.2s; }
+.btn-upgrade:hover { background: #2563eb; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(59,130,246,0.4); }
+
+/* TABS SYSTEM */
+#view-inventory, #view-vulnerabilities, #view-compliance { display: none; }
+
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="#" class="logo" onclick="switchView('overview')">
+    <div class="logo-icon"><svg viewBox="0 0 24 24" stroke-width="2.5"><path d="M12 2L3 7v5c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V7L12 2z"/></svg></div>
+    SentinelGuard<span style="color:var(--accent)">AI</span>
+  </a>
+  <div class="user-profile">
+    <div class="user-info">
+      <div class="user-name" id="uiName">Alex Rivera</div>
+      <div class="user-company" id="uiCompany">Acme Corp</div>
+    </div>
+    <div class="avatar" id="uiAvatar">AR</div>
+  </div>
+</div>
+
+<div class="sidebar">
+  <div class="nav-item active" onclick="switchView('overview')" id="nav-overview"><span class="nav-icon">📊</span> Overview</div>
+  <div class="nav-item" onclick="switchView('vulnerabilities')" id="nav-vulnerabilities"><span class="nav-icon">🛡</span> Vulnerabilities</div>
+  <div class="nav-item" onclick="switchView('inventory')" id="nav-inventory"><span class="nav-icon">🕸</span> Cloud Inventory</div>
+  <div class="nav-item" onclick="switchView('compliance')" id="nav-compliance"><span class="nav-icon">📋</span> Compliance</div>
+  <div class="nav-item" id="nav-settings" onclick="openSettings()"><span class="nav-icon">⚙</span> Settings</div>
+</div>
+
+<div class="main">
+  <!-- OVERVIEW VIEW -->
+  <div id="view-overview">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Security Command Center</h1>
+        <p class="page-sub">Continuous audit active · <span id="scanTime">Today, 14:20</span></p>
+      </div>
+      <div class="env-badge">
+        <div class="dot"></div> <span id="uiCloud">AWS</span> Production
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card alert">
+        <div class="stat-label">Critical Findings</div>
+        <div class="stat-value red" id="stat-critical">3</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">High Risk Alerts</div>
+        <div class="stat-value amber" id="stat-high">11</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Assets Scanned</div>
+        <div class="stat-value" id="stat-assets">2,847</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Overall Risk Score</div>
+        <div class="stat-value amber" id="stat-score">42<span style="font-size:16px;color:var(--text3)">/100</span></div>
+      </div>
+    </div>
+
+    <div class="dash-grid">
+      <div>
+        <div class="panel">
+          <div class="panel-header">Prioritized Remediation</div>
+          <div class="panel-body">
+            <table class="table" id="findings-table">
+              <thead>
+                <tr>
+                  <th>RESOURCE</th>
+                  <th>FINDING</th>
+                  <th>SEVERITY</th>
+                  <th>ACTION</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Dynamic Content -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="panel" style="margin-bottom: 24px;">
+          <div class="panel-header">
+            <span>Critical Attack Path</span>
+            <span style="font-size:11px;font-family:var(--font-mono);color:var(--red);">PATH ANALYSIS</span>
+          </div>
+          <div class="panel-body" id="path-container">
+            <!-- Dynamic Path Nodes -->
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">Compliance Posture</div>
+          <div class="panel-body" id="compliance-container">
+            <!-- Dynamic Bars -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VULNERABILITIES VIEW -->
+  <div id="view-vulnerabilities">
+    <div class="page-header">
+      <h1 class="page-title">Vulnerability Management</h1>
+    </div>
+    <div class="panel">
+      <div class="panel-header">All Open Findings</div>
+      <div class="panel-body">
+        <p style="color:var(--text3); text-align:center; padding:40px;">Detailed vulnerability view is loading...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- INVENTORY VIEW -->
+  <div id="view-inventory">
+    <div class="page-header">
+      <h1 class="page-title">Cloud Infrastructure Graph</h1>
+    </div>
+    <div class="panel">
+      <div class="panel-header">Active Asset Inventory</div>
+      <div class="panel-body">
+        <p style="color:var(--text3); text-align:center; padding:40px;">Asset graph visualization requires Pro plan.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMPLIANCE VIEW -->
+  <div id="view-compliance">
+    <div class="page-header">
+      <h1 class="page-title">Compliance Frameworks</h1>
+    </div>
+    <div class="panel">
+      <div class="panel-header">Regulatory Mapping</div>
+      <div class="panel-body">
+        <p style="color:var(--text3); text-align:center; padding:40px;">Detailed compliance reports loading...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="floating-btn" onclick="showPaywall()">
+  🛡 One-Click Remediation
+</div>
+
+<!-- PAYWALL MODAL -->
+<div class="modal-overlay" id="paywallModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closePaywall()">×</button>
+    <div class="modal-header">
+      <div class="modal-icon">⚡</div>
+      <h2 class="modal-title">SentinelGuard <span style="color:var(--accent)">PRO</span></h2>
+      <p class="modal-sub">Enable automated response and enterprise-grade security orchestration.</p>
+    </div>
+    <div class="modal-body">
+      <div class="plan-compare">
+        <div class="plan-row" style="color:var(--text3); font-size:11px; text-transform:uppercase;">
+          <span>Security Capability</span>
+          <span>Starter</span>
+          <span style="color:var(--accent2);">PRO</span>
+        </div>
+        <div class="plan-row">
+          <span>Continuous Scanning</span>
+          <span class="plan-val val-yes">✓</span>
+          <span class="plan-val val-yes">✓</span>
+        </div>
+        <div class="plan-row">
+          <span>Attack Path Analysis</span>
+          <span class="plan-val val-yes">✓</span>
+          <span class="plan-val val-yes">✓</span>
+        </div>
+        <div class="plan-row">
+          <span>Auto-Remediation</span>
+          <span class="plan-val val-no">✕</span>
+          <span class="plan-val val-yes">✓</span>
+        </div>
+        <div class="plan-row">
+          <span>Ticket Sync (Jira/HubSpot)</span>
+          <span class="plan-val val-no">✕</span>
+          <span class="plan-val val-yes">✓</span>
+        </div>
+        <div class="plan-row">
+          <span>Custom Frameworks</span>
+          <span class="plan-val val-no">✕</span>
+          <span class="plan-val val-yes">✓</span>
+        </div>
+      </div>
+      <div style="display: flex; gap: 12px;">
+        <button class="btn-upgrade" id="btn-upgrade-starter" style="background: var(--surface2); border: 1px solid var(--border); color: var(--text);">Starter — $1,000/mo</button>
+        <button class="btn-upgrade" id="btn-upgrade-pro">Pro — $5,000/mo</button>
+      </div>
+      <p style="text-align:center;font-size:11px;color:var(--text3);margin-top:16px;">Enterprise custom pricing available for 10,000+ assets.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Dynamic Data Generator based on Role
+  function generateSecurityData(role) {
+    const isCISO = role === 'ciso';
+    const isDevOps = role === 'devops';
+
+    // Base stats
+    let critical = 3, high = 11, assets = 2847, score = 42;
+
+    if (isCISO) {
+      score = 58; // CISO sees a slightly higher "Impact" score
+      critical = 4;
+      high = 22;
+    } else if (isDevOps) {
+      score = 31;
+      assets = 1450;
+    }
+
+    // Findings
+    const findings = [
+      { res: 's3://prod-user-data', title: 'Public Access + Unencrypted', sev: 'CRITICAL', type: 'S3' },
+      { res: 'iam:dev-deploy-role', title: 'Privilege Escalation Path', sev: 'CRITICAL', type: 'IAM' },
+      { res: 'ec2:i-0f732910ba', title: 'Critical RCE (CVE-2024-2162)', sev: 'CRITICAL', type: 'EC2' },
+      { res: 'rds:production-db', title: 'Publicly Accessible Instance', sev: 'HIGH', type: 'RDS' },
+      { res: 'lambda:data-sync', title: 'Outdated Runtime (Node 14)', sev: 'HIGH', type: 'Lambda' }
+    ];
+
+    // Compliance
+    const compliance = [
+      { name: 'SOC 2 Type II', pct: isCISO ? 62 : 88, color: 'amber' },
+      { name: 'ISO 27001', pct: 74, color: '' },
+      { name: 'CIS Benchmarks', pct: 41, color: 'amber' }
+    ];
+
+    // Attack Path
+    const path = [
+      { icon: '🌐', title: 'Public Internet', sub: 'Inbound port 443' },
+      { icon: '🪣', title: 'S3: prod-user-data', sub: 'Exposed via Public ACL', alert: true },
+      { icon: 'λ', title: 'Lambda: data-sync', sub: 'Role: AdminAccess', alert: true },
+      { icon: '💾', title: 'RDS: production-db', sub: 'Target: PI Data' }
+    ];
+
+    return { critical, high, assets, score, findings, compliance, path };
+  }
+
+  // UI Controller
+  function updateUI() {
+    let u = { name: 'Alex Rivera', company: 'Acme Corp', role: 'engineer', cloud: 'aws' };
+    try {
+      const stored = sessionStorage.getItem('sg_user');
+      if (stored) u = { ...u, ...JSON.parse(stored) };
+    } catch (e) {}
+
+    document.getElementById('uiName').textContent = u.name || 'User';
+    document.getElementById('uiCompany').textContent = u.company || 'Company';
+    document.getElementById('uiAvatar').textContent = (u.name || 'SG').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+    if(document.getElementById('uiCloud') && u.cloud) document.getElementById('uiCloud').textContent = u.cloud.toUpperCase();
+
+    const data = generateSecurityData(u.role);
+
+    // Update Stats
+    document.getElementById('stat-critical').textContent = data.critical;
+    document.getElementById('stat-high').textContent = data.high;
+    document.getElementById('stat-assets').textContent = data.assets.toLocaleString();
+    document.getElementById('stat-score').innerHTML = `${data.score}<span style="font-size:16px;color:var(--text3)">/100</span>`;
+    
+    const scoreColor = data.score > 50 ? 'red' : 'amber';
+    document.getElementById('stat-score').className = 'stat-value ' + scoreColor;
+
+    // Findings Table
+    const tableBody = document.querySelector('#findings-table tbody');
+    tableBody.innerHTML = data.findings.map(f => `
+      <tr>
+        <td style="font-family:var(--font-mono); color:var(--accent2);">${f.res}</td>
+        <td>${f.title}</td>
+        <td><span class="badge ${f.sev.toLowerCase()}">${f.sev}</span></td>
+        <td><button class="btn-fix" onclick="${u.plan === 'pro' ? 'autoRemediate(this)' : 'showPaywall()'}">${u.plan === 'pro' ? 'Auto-Remediate' : 'Fix Issue'}</button></td>
+      </tr>
+    `).join('');
+
+    // Attack Path
+    const pathContainer = document.getElementById('path-container');
+    pathContainer.innerHTML = data.path.map((n, i) => `
+      ${i > 0 ? '<div class="path-arrow"></div>' : ''}
+      <div class="path-node ${n.alert ? 'red' : ''}">
+        <div class="path-icon">${n.icon}</div>
+        <div class="path-info">
+          <div class="path-title">${n.title}</div>
+          <div class="path-sub">${n.sub}</div>
+        </div>
+      </div>
+    `).join('');
+
+    // Compliance
+    const compContainer = document.getElementById('compliance-container');
+    compContainer.innerHTML = data.compliance.map(c => `
+      <div class="comp-item">
+        <div class="comp-header"><span>${c.name}</span> <span style="color:var(--${c.color || 'accent2'});">${c.pct}%</span></div>
+        <div class="comp-bar"><div class="comp-fill ${c.color}" style="width: ${c.pct}%;"></div></div>
+      </div>
+    `).join('');
+
+    // If Enterprise, change price in modal
+    if (data.assets > 5000) {
+      document.getElementById('btn-upgrade-val').textContent = "Contact Sales for Enterprise Quote";
+    }
+  }
+
+  function switchView(id) {
+    ['overview', 'vulnerabilities', 'inventory', 'compliance'].forEach(v => {
+      document.getElementById('view-' + v).style.display = 'none';
+      const nav = document.getElementById('nav-' + v);
+      if(nav) nav.classList.remove('active');
+    });
+    document.getElementById('view-' + id).style.display = 'block';
+    const activeNav = document.getElementById('nav-' + id);
+    if(activeNav) activeNav.classList.add('active');
+  }
+
+  function openSettings() {
+    const u = JSON.parse(sessionStorage.getItem('sg_user') || '{}');
+    if (u.plan === 'pro') {
+      alert("Settings Panel (Pro Version)\n\nHere you would configure Auto-Remediation rules and integrations.");
+    } else {
+      showPaywall('settings_tab');
+    }
+  }
+
+  function autoRemediate(btn) {
+    btn.textContent = 'Fixing...';
+    btn.disabled = true;
+    setTimeout(() => {
+      btn.textContent = 'Fixed ✓';
+      btn.style.background = 'var(--green)';
+      btn.style.color = '#fff';
+      btn.style.borderColor = 'var(--green)';
+    }, 1500);
+  }
+
+  // Time format
+  const d = new Date();
+  document.getElementById('scanTime').textContent = `Today, ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+
+  // ── Backend wiring ───────────────────────────────────────────
+  const API_BASE = 'http://localhost:5050';
+  const sgUser   = JSON.parse(sessionStorage.getItem('sg_user') || '{}');
+
+  async function _post(endpoint, body) {
+    try {
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...sgUser, ...body }),
+      });
+      return await res.json();
+    } catch (err) {
+      console.warn('[SentinelGuard] ' + endpoint + ' unreachable:', err);
+      return null;
+    }
+  }
+
+  // Fix Issue / paywall → HubSpot SQL + Meta CAPI StartTrial ($1k)
+  function showPaywall(featureName) {
+    document.getElementById('paywallModal').classList.add('show');
+    _post('/api/upgrade-intent', { plan_clicked: 'starter', feature_clicked: featureName || 'fix_issue' });
+  }
+
+  function closePaywall() { document.getElementById('paywallModal').classList.remove('show'); }
+  window.onclick = function(e) { if (e.target == document.getElementById('paywallModal')) closePaywall(); }
+
+  // Upgrade CTAs inside modal → Stripe Checkout
+  async function handleUpgrade(planName, btnId) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    const origText = btn.textContent;
+    btn.textContent = 'Preparing Checkout...';
+    btn.disabled = true;
+    
+    const response = await _post('/api/upgrade-intent', { plan_clicked: planName, feature_clicked: 'modal_upgrade_cta' });
+    
+    if (response && response.results && response.results.checkout_url) {
+      window.location.href = response.results.checkout_url;
+    } else {
+      btn.textContent = 'Error - Check Console';
+      setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 3000);
+    }
+  }
+
+  const btnStarter = document.getElementById('btn-upgrade-starter');
+  if (btnStarter) btnStarter.addEventListener('click', () => handleUpgrade('starter', 'btn-upgrade-starter'));
+
+  const btnPro = document.getElementById('btn-upgrade-pro');
+  if (btnPro) btnPro.addEventListener('click', () => handleUpgrade('pro', 'btn-upgrade-pro'));
+
+  // Dashboard session started → PostHog
+  _post('/api/track', { event: 'Session Started', properties: { page: 'dashboard' } });
+
+  // Init
+  updateUI();
+</script>
+</body>
+
+</html>

@@ -93,62 +93,62 @@ class FreshdeskWriter:
         return self._make_request('POST', 'contacts', contact_data)
 
 
-# Sample data for realistic B2B SaaS support tickets
+# Sample data for realistic B2B SaaS support tickets (CSPM Specific)
 TICKET_SUBJECTS = [
-    "Cannot access dashboard after login",
-    "API rate limit exceeded - need increase",
+    "False positive on AWS IAM Role scanning",
+    "API rate limit exceeded during GCP org sync",
     "Billing discrepancy on invoice #{}",
-    "Feature request: Export to CSV",
-    "Integration with {} not working",
-    "User permissions not updating",
-    "SSO configuration help needed",
-    "Data sync delayed by 2+ hours",
-    "Mobile app crashing on startup",
-    "Webhook delivery failures",
-    "Question about enterprise plan features",
-    "Need help migrating from competitor",
-    "Custom domain setup assistance",
-    "Performance issues with large datasets",
-    "Email notifications not being sent",
-    "URGENT: Report generation timing out", # Pattern Injection
-    "White label branding not applying",
+    "Feature request: Export compliance report to PDF",
+    "Integration with {} (SIEM) not working",
+    "Auto-remediation PRs not opening in GitHub",
+    "SSO configuration help needed for Okta",
+    "Data sync delayed for AWS us-east-1",
+    "Terraform state file parsing error",
+    "Webhook delivery failures to Jira",
+    "Question about Enterprise plan custom frameworks",
+    "Need help migrating from Prisma Cloud",
+    "Custom compliance benchmark setup assistance",
+    "Performance issues scanning 10k+ S3 buckets",
+    "Email alerts for Critical findings not being sent",
+    "URGENT: Auto-remediation broke our CI/CD pipeline", 
+    "SentinelGuard IAM role permissions issue",
     "Team member invitation not received",
-    "Data export taking too long and failing", # Pattern Injection
-    "Need API documentation for v2",
+    "Data export taking too long and failing", 
+    "Need API documentation for GraphQL v2",
 ]
 
 TICKET_DESCRIPTIONS = {
     "technical": [
-        "We're experiencing issues with {} functionality. This started approximately {} ago and is affecting {} users in our organization.",
-        "Our team is unable to {}. We've tried clearing cache and different browsers but the issue persists. Error code: {}.",
-        "The {} feature is not working as expected. Expected behavior: {}. Actual behavior: {}.",
-        "We're getting a {} error when trying to {}. This is blocking our workflow. Urgency: High.",
-        "Performance degradation noticed in {}. Load times have increased from {}s to {}s over the past week.",
-        "Every time we try to use the Reports Export feature, it times out after 10-15 seconds. This is critical for our board meeting.", # Pattern Injection
-        "The export_failed_error keeps popping up in the reports dashboard. How do we fix this?" # Pattern Injection
+        "We're experiencing issues with {} scanning. This started approximately {} ago and is affecting {} AWS accounts in our organization.",
+        "Our team is unable to {}. We've re-deployed the SentinelGuard IAM role but the issue persists. Error code: {}.",
+        "The {} remediation feature is not working as expected. Expected behavior: {}. Actual behavior: {}.",
+        "We're getting a {} error when trying to {}. This is blocking our compliance audit. Urgency: High.",
+        "Performance degradation noticed in {}. Scan times have increased from {}s to {}s over the past week.",
+        "Every time we try to use the Compliance Export feature, it times out after 10-15 seconds. This is critical for our board meeting.",
+        "The export_failed_error keeps popping up in the reports dashboard. How do we fix this?"
     ],
     "billing": [
-        "We noticed a charge of ${} on our account but we expected ${}. Can you please clarify the difference?",
-        "Our invoice #{} shows {} seats but we only have {} active users. Please review and adjust.",
-        "We'd like to upgrade from {} plan to {} plan. What's the prorated cost for the remainder of this billing cycle?",
+        "We noticed a charge of ${} on our account but we expected ${}. We only have 3,000 billable cloud assets.",
+        "Our invoice #{} shows {} scanned assets but our AWS billing shows we only have {}. Please review and adjust.",
+        "We'd like to upgrade from {} plan to {} plan to get auto-remediation. What's the prorated cost?",
         "We were charged twice for the same period. Transaction IDs: {} and {}. Please refund one charge.",
-        "Can you provide a breakdown of our current usage? We're seeing higher costs than anticipated.",
+        "Can you provide a breakdown of our current asset usage? We're seeing higher costs than anticipated.",
     ],
     "feature_request": [
-        "It would be great if we could {}. This would help us {} and improve our workflow significantly.",
-        "Many of our team members have requested the ability to {}. Is this on your roadmap?",
-        "We need {} functionality for our use case. Currently we have to work around this by {}.",
-        "Suggestion: Add {} to the {} section. This would make {} much easier.",
-        "Are there plans to support {}? This is a must-have for our team.",
-        "Our team strictly needs customizing our report exports. Right now we have to manually reformat the CSV every week." # Pattern injection
+        "It would be great if we could {}. This would help us {} and improve our cloud security posture significantly.",
+        "Many of our DevOps team members have requested the ability to {}. Is this on your roadmap?",
+        "We need {} functionality for our multi-cloud use case. Currently we have to work around this by {}.",
+        "Suggestion: Add {} to the {} compliance view. This would make {} much easier.",
+        "Are there plans to support {} (like Alibaba Cloud)? This is a must-have for our APAC team.",
+        "Our team strictly needs customizing our report exports. Right now we have to manually reformat the CSV every week."
     ],
     "question": [
-        "What's the difference between {} and {} in your {} plan?",
-        "How do we configure {} for our team? The documentation is not clear on this.",
-        "Can you explain how {} works with {}? We want to ensure proper setup.",
-        "Is it possible to {}? We have a specific use case where this would be helpful.",
-        "What are the limits for {} in our current plan? Can these be increased?",
-    ],
+        "What's the difference between {} and {} in your {} plan regarding custom policies?",
+        "How do we configure {} for our Gitlab CI/CD? The documentation is not clear on this.",
+        "Can you explain how {} works with {}? We want to ensure proper IAM least-privilege.",
+        "Is it possible to {}? We have a specific compliance framework (FedRAMP) where this would be helpful.",
+        "What are the asset limits for {} in our current plan? Can these be increased?",
+    ]
 }
 
 COMPANIES = [

@@ -38,15 +38,12 @@ class StripeDataWriter:
         "Rodriguez", "Martinez", "Hernandez", "Lopez", "Wilson", "Anderson", "Taylor"
     ]
 
-    # B2B SaaS pricing tiers
+    # B2B SaaS CSPM pricing tiers
     PRICING_PLANS = {
-        "starter": {"price": 49, "interval": "month"},
-        "professional": {"price": 149, "interval": "month"},
-        "business": {"price": 399, "interval": "month"},
-        "enterprise": {"price": 999, "interval": "month"},
-        "starter_annual": {"price": 490, "interval": "year"},
-        "professional_annual": {"price": 1490, "interval": "year"},
-        "business_annual": {"price": 3990, "interval": "year"},
+        "starter": {"price": 1000, "interval": "month"},
+        "pro": {"price": 5000, "interval": "month"},
+        "starter_annual": {"price": 10000, "interval": "year"},
+        "pro_annual": {"price": 50000, "interval": "year"},
     }
 
     def __init__(self, api_key: str):
@@ -72,10 +69,10 @@ class StripeDataWriter:
         try:
             # Create main product
             product = stripe.Product.create(
-                name="RevOps Analytics Platform",
-                description="Complete RevOps analytics and reporting solution for B2B SaaS companies",
+                name="SentinelGuard AI CSPM",
+                description="Cloud Security Posture Management with Auto-Remediation",
                 metadata={
-                    "category": "saas",
+                    "category": "security",
                     "type": "subscription"
                 }
             )

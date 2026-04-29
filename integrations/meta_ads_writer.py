@@ -17,6 +17,21 @@ logger = get_logger(__name__)
 
 
 class MetaAdsWriter:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     """Writer for Meta Ads Conversions API"""
 
     BASE_URL = "https://graph.facebook.com/v18.0"

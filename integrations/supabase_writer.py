@@ -133,7 +133,7 @@ class SupabaseWriter:
         logger.info(f"Inserting {count} companies...")
 
         industries = ['SaaS', 'E-commerce', 'FinTech', 'HealthTech', 'EdTech', 'MarTech']
-        plans = ['Free', 'Starter', 'Professional', 'Enterprise']
+        plans = ['Free', 'Starter', 'Pro', 'Enterprise']
         statuses = ['Active', 'Trial', 'Churned', 'At Risk']
 
         companies = []
@@ -320,9 +320,9 @@ class SupabaseWriter:
 
         plans = [
             {'name': 'Free', 'mrr': 0, 'cycle': 'monthly'},
-            {'name': 'Starter', 'mrr': 49, 'cycle': 'monthly'},
-            {'name': 'Professional', 'mrr': 199, 'cycle': 'monthly'},
-            {'name': 'Enterprise', 'mrr': 999, 'cycle': 'annual'}
+            {'name': 'Starter', 'mrr': 1000, 'cycle': 'monthly'},
+            {'name': 'Pro', 'mrr': 5000, 'cycle': 'monthly'},
+            {'name': 'Enterprise', 'mrr': 12000, 'cycle': 'annual'}
         ]
         statuses = ['active', 'trialing', 'past_due', 'canceled']
 
@@ -467,8 +467,8 @@ class SupabaseWriter:
 
         plan_upgrades = {
             'Free':         'Starter',
-            'Starter':      'Professional',
-            'Professional': 'Enterprise',
+            'Starter':      'Pro',
+            'Pro':          'Enterprise',
             'Enterprise':   'Enterprise',
         }
 

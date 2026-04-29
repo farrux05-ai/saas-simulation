@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payment Successful - SentinelGuard AI</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  body {
+    background: #080c14;
+    color: #f1f5f9;
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    margin: 0;
+  }
+  .success-box {
+    background: #151f30;
+    border: 1px solid rgba(56,139,255,0.22);
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    max-width: 500px;
+  }
+  .icon {
+    font-size: 48px;
+    color: #10b981;
+    margin-bottom: 20px;
+  }
+  h1 {
+    font-family: 'Syne', sans-serif;
+    margin-top: 0;
+  }
+  p {
+    color: #94a3b8;
+    line-height: 1.5;
+  }
+  .loader {
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top: 3px solid #3b82f6;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+  }
+  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="success-box">
+  <div class="icon">✓</div>
+  <h1>Subscription Confirmed</h1>
+  <p>Thank you for upgrading to SentinelGuard <span id="plan-name-display">Pro</span>.</p>
+  <p>Your payment has been processed successfully. We are upgrading your account features now.</p>
+  <div class="loader"></div>
+  <p style="font-size: 13px;">Redirecting back to dashboard in a few seconds...</p>
+</div>
+
+<script>
+  // Parse URL parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  const purchasedPlan = urlParams.get('plan') || 'pro';
+  const planDisplayNames = { 'starter': 'Starter', 'pro': 'Pro' };
+  
+  // Update UI text
+  document.getElementById('plan-name-display').textContent = planDisplayNames[purchasedPlan] || 'Pro';
+
+  // PostHog event to track successful checkout completion
+  const API_BASE = 'http://localhost:5050';
+  const sgUser   = JSON.parse(sessionStorage.getItem('sg_user') || '{}');
+
+  // Mark the user's new plan locally so the dashboard knows
+  sgUser.plan = purchasedPlan;
+  sessionStorage.setItem('sg_user', JSON.stringify(sgUser));
+
+  fetch(`${API_BASE}/api/track`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ 
+      ...sgUser, 
+      event: 'Checkout Completed',
+      properties: { plan: purchasedPlan, value: purchasedPlan === 'pro' ? 5000 : 1000 }
+    }),
+  }).catch(() => {});
+
+  // Redirect to dashboard after 3 seconds
+  setTimeout(() => {
+    window.location.href = '/dashboard.html';
+  }, 3500);
+</script>
+
+</body>
+</html>
