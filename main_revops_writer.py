@@ -332,23 +332,44 @@ class RevOpsDataWriter:
         logger.info(f"Writing to: {', '.join(services_to_write)}")
         logger.info("")
 
+        # Scaling factors: base personas + num_random
+        total_companies = len(self.context.fixed_personas) + num_random
+        total_contacts  = total_companies * 2
+        total_deals     = int(total_companies * 1.5)
+        total_customers = total_companies
+        total_tickets   = total_companies * 3
+        total_events    = total_companies * 10
+
         for service in services_to_write:
             try:
                 if service == 'meta_ads':
                     self.results['meta_ads'] = self.write_meta_ads(
                         pixel_id=kwargs.get('meta_pixel_id'),
-                        test_code=kwargs.get('meta_test_code')
+                        test_code=kwargs.get('meta_test_code'),
+                        num_events=num_random * 10
                     )
                 elif service == 'hubspot':
-                    self.results['hubspot'] = self.write_hubspot()
+                    self.results['hubspot'] = self.write_hubspot(
+                        num_companies=total_companies,
+                        num_contacts=total_contacts,
+                        num_deals=total_deals
+                    )
                 elif service == 'stripe':
-                    self.results['stripe'] = self.write_stripe()
+                    self.results['stripe'] = self.write_stripe(
+                        num_customers=total_customers
+                    )
                 elif service == 'posthog':
-                    self.results['posthog'] = self.write_posthog()
+                    self.results['posthog'] = self.write_posthog(
+                        num_users=total_contacts
+                    )
                 elif service == 'freshdesk':
-                    self.results['freshdesk'] = self.write_freshdesk()
+                    self.results['freshdesk'] = self.write_freshdesk(
+                        ticket_count=total_tickets
+                    )
                 elif service == 'supabase':
-                    self.results['supabase'] = self.write_supabase()
+                    self.results['supabase'] = self.write_supabase(
+                        num_companies=total_companies
+                    )
                 elif service == 'call_transcripts':
                     self.results['call_transcripts'] = self.write_call_transcripts()
 
@@ -412,6 +433,7 @@ Examples:
     )
     parser.add_argument('--meta-pixel-id', type=str, help='Meta Ads Pixel ID')
     parser.add_argument('--meta-test-code', type=str, help='Meta Ads test event code')
+    parser.add_argument('--num-random', type=int, default=4, help='Number of extra random companies to simulate (organic growth)')
     parser.add_argument('--check-config', action='store_true', help='Show configured layers')
     parser.add_argument('--dry-run', action='store_true', help='Simulate without writing data')
 
@@ -440,7 +462,8 @@ Examples:
         writer.write_all(
             services=args.services if not args.all else None,
             meta_pixel_id=args.meta_pixel_id,
-            meta_test_code=args.meta_test_code
+            meta_test_code=args.meta_test_code,
+            num_random=args.num_random
         )
 
         if writer.errors:
