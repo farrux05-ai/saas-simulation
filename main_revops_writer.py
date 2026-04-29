@@ -406,7 +406,7 @@ class RevOpsDataWriter:
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description="A-series B2B SaaS Revenue Engine — Simulation Runner",
+        description="A-series B2B SaaS Revenue Engine (v2.0) — Simulation Runner",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
