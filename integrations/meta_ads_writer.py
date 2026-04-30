@@ -136,6 +136,8 @@ class MetaAdsWriter:
 
         try:
             response = self.session.post(url, json=payload)
+            if not response.ok:
+                logger.error(f"Meta API Error: {response.text}")
             response.raise_for_status()
             result = response.json()
             logger.info(f"Sent conversion event '{event_name}' to Meta Ads")
@@ -196,6 +198,8 @@ class MetaAdsWriter:
 
         try:
             response = self.session.post(url, json=payload)
+            if not response.ok:
+                logger.error(f"Meta API Error: {response.text}")
             response.raise_for_status()
             result = response.json()
             logger.info(f"Sent batch of {len(events)} events to Meta Ads")
