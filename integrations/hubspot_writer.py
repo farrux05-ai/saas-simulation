@@ -177,8 +177,18 @@ def generate_sample_contacts(count: int = 10, context: Optional['SimulationConte
         'Account Executive', 'Solutions Architect', 'DevOps Lead'
     ]
 
-    # UTM sources reflect real B2B SaaS demand gen channels
-    utm_sources = ['google', 'linkedin', 'organic', 'referral', 'direct', 'newsletter', 'g2', 'capterra']
+    # UTM sources must map to HubSpot's internal allowed options for hs_analytics_source
+    # Allowed: [ORGANIC_SEARCH, PAID_SEARCH, EMAIL_MARKETING, SOCIAL_MEDIA, REFERRALS, OTHER_CAMPAIGNS, DIRECT_TRAFFIC, OFFLINE, PAID_SOCIAL, AI_REFERRALS]
+    source_mapping = {
+        'google': 'PAID_SEARCH',
+        'linkedin': 'PAID_SOCIAL',
+        'organic': 'ORGANIC_SEARCH',
+        'referral': 'REFERRALS',
+        'direct': 'DIRECT_TRAFFIC',
+        'newsletter': 'EMAIL_MARKETING',
+        'g2': 'REFERRALS',
+        'capterra': 'REFERRALS'
+    }
     utm_mediums = ['cpc', 'social', 'organic', 'referral', 'email', 'review-site']
     utm_campaigns = [
         'cspm-awareness-q2', 'cloud-security-webinar', 'soc2-guide-2026',
@@ -187,62 +197,33 @@ def generate_sample_contacts(count: int = 10, context: Optional['SimulationConte
 
     contacts = []
 
-    # If context provided, first inject persona contacts with correct scores
+    # If context provided, first inject persona contacts
     persona_contacts = []
     if context:
         for p in context.fixed_personas:
-            # Lifecycle → lead score logic (mirrors Hubspot Marketing Hub scoring)
             if p.lifecycle_stage in ('active', 'won'):
-                lead_score = random.randint(65, 95)
                 lifecycle  = 'customer'
-                mql_date   = (datetime.now() - timedelta(days=random.randint(60, 120))).strftime('%Y-%m-%d')
             elif p.lifecycle_stage == 'at_risk':
-                lead_score = random.randint(40, 65)
                 lifecycle  = 'customer'
-                mql_date   = (datetime.now() - timedelta(days=random.randint(90, 180))).strftime('%Y-%m-%d')
             elif p.lifecycle_stage in ('stalled', 'new_lead'):
-                lead_score = random.randint(20, 45)
                 lifecycle  = 'salesqualifiedlead'
-                mql_date   = (datetime.now() - timedelta(days=random.randint(14, 45))).strftime('%Y-%m-%d')
             elif p.lifecycle_stage == 'churned':
-                lead_score = random.randint(5, 25)
                 lifecycle  = 'other'
-                mql_date   = (datetime.now() - timedelta(days=random.randint(200, 365))).strftime('%Y-%m-%d')
             else:
-                lead_score = random.randint(30, 60)
                 lifecycle  = 'marketingqualifiedlead'
-                mql_date   = (datetime.now() - timedelta(days=random.randint(7, 30))).strftime('%Y-%m-%d')
 
-            email_sends  = random.randint(3, 24)
-            email_opens  = random.randint(1, email_sends)
-            email_clicks = random.randint(0, email_opens)
-
+            # We use standard writable fields or custom-like names for simulation
+            raw_source = random.choice(list(source_mapping.keys()))
             persona_contacts.append({
                 'email':      p.contact_email,
                 'firstname':  p.contact_name.split()[0],
                 'lastname':   p.contact_name.split()[-1],
                 'jobtitle':   p.contact_title,
                 'phone':      f"+1-555-{random.randint(100,999)}-{random.randint(1000,9999)}",
-                # Core lifecycle
                 'lifecyclestage':         lifecycle,
                 'hs_lead_status':         'OPEN_DEAL' if p.lifecycle_stage in ('active','at_risk') else 'IN_PROGRESS',
-                # Marketing Automation: Lead Scoring
-                'hubspotscore':           str(lead_score),
-                # Marketing Automation: Email Engagement
-                'hs_email_sends_since_last_engagement':    str(email_sends),
-                'hs_email_open':                           str(email_opens),
-                'hs_email_click':                          str(email_clicks),
-                'hs_email_last_open_date':  (datetime.now() - timedelta(days=random.randint(1,14))).strftime('%Y-%m-%d'),
-                'hs_email_last_click_date': (datetime.now() - timedelta(days=random.randint(1,7))).strftime('%Y-%m-%d') if email_clicks > 0 else '',
-                # Marketing Automation: MQL Conversion
-                'hs_date_entered_marketingqualifiedlead': mql_date,
-                'num_conversion_events':  str(random.randint(1, 8)),
-                # Attribution: UTM / Lead Source
-                'hs_analytics_source':        random.choice(utm_sources),
-                'hs_analytics_source_data_1': random.choice(utm_mediums),
-                'hs_analytics_source_data_2': random.choice(utm_campaigns),
-                # Engagement score (composite — great for dbt models)
-                'hs_predictivecontactscore_v2': str(round(lead_score * 0.01, 4)),
+                # Attribution: mapping to allowed internal options
+                'hs_analytics_source':    source_mapping.get(raw_source, 'OTHER_CAMPAIGNS'),
             })
 
     contacts = persona_contacts[:]
@@ -253,12 +234,7 @@ def generate_sample_contacts(count: int = 10, context: Optional['SimulationConte
         last_name  = random.choice(last_names)
         email      = f"{first_name.lower()}.{last_name.lower()}{random.randint(1,999)}@example.com"
 
-        lead_score   = random.randint(1, 100)
-        email_sends  = random.randint(1, 20)
-        email_opens  = random.randint(0, email_sends)
-        email_clicks = random.randint(0, email_opens)
-
-        # Lifecycle driven by score (mirrors real Hubspot scoring rules)
+        lead_score = random.randint(1, 100)
         if lead_score >= 70:
             lifecycle = 'customer'
         elif lead_score >= 45:
@@ -268,6 +244,7 @@ def generate_sample_contacts(count: int = 10, context: Optional['SimulationConte
         else:
             lifecycle = 'lead'
 
+        raw_source = random.choice(list(source_mapping.keys()))
         contacts.append({
             'email':      email,
             'firstname':  first_name,
@@ -276,23 +253,10 @@ def generate_sample_contacts(count: int = 10, context: Optional['SimulationConte
             'phone':      f"+1-555-{random.randint(100,999)}-{random.randint(1000,9999)}",
             'lifecyclestage':   lifecycle,
             'hs_lead_status':   random.choice(['NEW', 'OPEN', 'IN_PROGRESS', 'OPEN_DEAL', 'UNQUALIFIED', 'CONNECTED']),
-            # Lead scoring
-            'hubspotscore':     str(lead_score),
-            # Email engagement
-            'hs_email_sends_since_last_engagement': str(email_sends),
-            'hs_email_open':    str(email_opens),
-            'hs_email_click':   str(email_clicks),
-            'hs_email_last_open_date':  (datetime.now() - timedelta(days=random.randint(0,60))).strftime('%Y-%m-%d') if email_opens else '',
-            'hs_email_last_click_date': (datetime.now() - timedelta(days=random.randint(0,30))).strftime('%Y-%m-%d') if email_clicks else '',
-            # MQL tracking
-            'hs_date_entered_marketingqualifiedlead': (datetime.now() - timedelta(days=random.randint(1,365))).strftime('%Y-%m-%d') if lead_score >= 25 else '',
-            'num_conversion_events': str(random.randint(0, 10)),
-            # Lead source attribution
-            'hs_analytics_source':        random.choice(utm_sources),
-            'hs_analytics_source_data_1': random.choice(utm_mediums),
-            'hs_analytics_source_data_2': random.choice(utm_campaigns),
-            'hs_predictivecontactscore_v2': str(round(lead_score * 0.01, 4)),
+            'hs_analytics_source': source_mapping.get(raw_source, 'OTHER_CAMPAIGNS'),
         })
+
+    return contacts
 
     return contacts
 
