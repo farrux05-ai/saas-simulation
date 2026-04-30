@@ -153,8 +153,16 @@ class HubSpotWriter:
         return result
 
 
-def generate_sample_contacts(count: int = 10) -> List[Dict]:
-    """Generate sample contact data"""
+def generate_sample_contacts(count: int = 10, context: Optional['SimulationContext'] = None) -> List[Dict]:
+    """Generate sample contact data with Marketing Automation fields.
+    
+    Real-world HubSpot contacts have a rich set of marketing automation
+    properties (lead score, email engagement, UTM sources, etc.) that
+    are critical for RevOps analytics:
+      - fct_mql_velocity  (MQL → SQL time)
+      - fct_email_influence (did email touch lead to close?)
+      - dim_lead_source    (paid vs organic vs referral)
+    """
 
     first_names = ['John', 'Sarah', 'Michael', 'Emily', 'David', 'Jessica', 'James', 'Lisa', 'Robert', 'Jennifer',
                    'William', 'Linda', 'Richard', 'Patricia', 'Thomas', 'Maria', 'Charles', 'Susan', 'Daniel', 'Karen']
@@ -169,24 +177,122 @@ def generate_sample_contacts(count: int = 10) -> List[Dict]:
         'Account Executive', 'Solutions Architect', 'DevOps Lead'
     ]
 
+    # UTM sources reflect real B2B SaaS demand gen channels
+    utm_sources = ['google', 'linkedin', 'organic', 'referral', 'direct', 'newsletter', 'g2', 'capterra']
+    utm_mediums = ['cpc', 'social', 'organic', 'referral', 'email', 'review-site']
+    utm_campaigns = [
+        'cspm-awareness-q2', 'cloud-security-webinar', 'soc2-guide-2026',
+        'competitor-displacement', 'brand-search', 'g2-review-badge'
+    ]
+
     contacts = []
 
-    for i in range(count):
+    # If context provided, first inject persona contacts with correct scores
+    persona_contacts = []
+    if context:
+        for p in context.fixed_personas:
+            # Lifecycle → lead score logic (mirrors Hubspot Marketing Hub scoring)
+            if p.lifecycle_stage in ('active', 'won'):
+                lead_score = random.randint(65, 95)
+                lifecycle  = 'customer'
+                mql_date   = (datetime.now() - timedelta(days=random.randint(60, 120))).strftime('%Y-%m-%d')
+            elif p.lifecycle_stage == 'at_risk':
+                lead_score = random.randint(40, 65)
+                lifecycle  = 'customer'
+                mql_date   = (datetime.now() - timedelta(days=random.randint(90, 180))).strftime('%Y-%m-%d')
+            elif p.lifecycle_stage in ('stalled', 'new_lead'):
+                lead_score = random.randint(20, 45)
+                lifecycle  = 'salesqualifiedlead'
+                mql_date   = (datetime.now() - timedelta(days=random.randint(14, 45))).strftime('%Y-%m-%d')
+            elif p.lifecycle_stage == 'churned':
+                lead_score = random.randint(5, 25)
+                lifecycle  = 'other'
+                mql_date   = (datetime.now() - timedelta(days=random.randint(200, 365))).strftime('%Y-%m-%d')
+            else:
+                lead_score = random.randint(30, 60)
+                lifecycle  = 'marketingqualifiedlead'
+                mql_date   = (datetime.now() - timedelta(days=random.randint(7, 30))).strftime('%Y-%m-%d')
+
+            email_sends  = random.randint(3, 24)
+            email_opens  = random.randint(1, email_sends)
+            email_clicks = random.randint(0, email_opens)
+
+            persona_contacts.append({
+                'email':      p.contact_email,
+                'firstname':  p.contact_name.split()[0],
+                'lastname':   p.contact_name.split()[-1],
+                'jobtitle':   p.contact_title,
+                'phone':      f"+1-555-{random.randint(100,999)}-{random.randint(1000,9999)}",
+                # Core lifecycle
+                'lifecyclestage':         lifecycle,
+                'hs_lead_status':         'OPEN_DEAL' if p.lifecycle_stage in ('active','at_risk') else 'IN_PROGRESS',
+                # Marketing Automation: Lead Scoring
+                'hubspotscore':           str(lead_score),
+                # Marketing Automation: Email Engagement
+                'hs_email_sends_since_last_engagement':    str(email_sends),
+                'hs_email_open':                           str(email_opens),
+                'hs_email_click':                          str(email_clicks),
+                'hs_email_last_open_date':  (datetime.now() - timedelta(days=random.randint(1,14))).strftime('%Y-%m-%d'),
+                'hs_email_last_click_date': (datetime.now() - timedelta(days=random.randint(1,7))).strftime('%Y-%m-%d') if email_clicks > 0 else '',
+                # Marketing Automation: MQL Conversion
+                'hs_date_entered_marketingqualifiedlead': mql_date,
+                'num_conversion_events':  str(random.randint(1, 8)),
+                # Attribution: UTM / Lead Source
+                'hs_analytics_source':        random.choice(utm_sources),
+                'hs_analytics_source_data_1': random.choice(utm_mediums),
+                'hs_analytics_source_data_2': random.choice(utm_campaigns),
+                # Engagement score (composite — great for dbt models)
+                'hs_predictivecontactscore_v2': str(round(lead_score * 0.01, 4)),
+            })
+
+    contacts = persona_contacts[:]
+
+    # Fill the rest with random contacts
+    for i in range(max(0, count - len(persona_contacts))):
         first_name = random.choice(first_names)
-        last_name = random.choice(last_names)
-        email = f"{first_name.lower()}.{last_name.lower()}{random.randint(1, 999)}@example.com"
+        last_name  = random.choice(last_names)
+        email      = f"{first_name.lower()}.{last_name.lower()}{random.randint(1,999)}@example.com"
 
-        contact = {
-            'email': email,
-            'firstname': first_name,
-            'lastname': last_name,
-            'jobtitle': random.choice(job_titles),
-            'phone': f"+1-555-{random.randint(100, 999)}-{random.randint(1000, 9999)}",
-            'lifecyclestage': random.choice(['lead', 'marketingqualifiedlead', 'salesqualifiedlead', 'opportunity', 'customer']),
-            'hs_lead_status': random.choice(['NEW', 'OPEN', 'IN_PROGRESS', 'OPEN_DEAL', 'UNQUALIFIED', 'CONNECTED']),
-        }
+        lead_score   = random.randint(1, 100)
+        email_sends  = random.randint(1, 20)
+        email_opens  = random.randint(0, email_sends)
+        email_clicks = random.randint(0, email_opens)
 
-        contacts.append(contact)
+        # Lifecycle driven by score (mirrors real Hubspot scoring rules)
+        if lead_score >= 70:
+            lifecycle = 'customer'
+        elif lead_score >= 45:
+            lifecycle = 'salesqualifiedlead'
+        elif lead_score >= 25:
+            lifecycle = 'marketingqualifiedlead'
+        else:
+            lifecycle = 'lead'
+
+        contacts.append({
+            'email':      email,
+            'firstname':  first_name,
+            'lastname':   last_name,
+            'jobtitle':   random.choice(job_titles),
+            'phone':      f"+1-555-{random.randint(100,999)}-{random.randint(1000,9999)}",
+            'lifecyclestage':   lifecycle,
+            'hs_lead_status':   random.choice(['NEW', 'OPEN', 'IN_PROGRESS', 'OPEN_DEAL', 'UNQUALIFIED', 'CONNECTED']),
+            # Lead scoring
+            'hubspotscore':     str(lead_score),
+            # Email engagement
+            'hs_email_sends_since_last_engagement': str(email_sends),
+            'hs_email_open':    str(email_opens),
+            'hs_email_click':   str(email_clicks),
+            'hs_email_last_open_date':  (datetime.now() - timedelta(days=random.randint(0,60))).strftime('%Y-%m-%d') if email_opens else '',
+            'hs_email_last_click_date': (datetime.now() - timedelta(days=random.randint(0,30))).strftime('%Y-%m-%d') if email_clicks else '',
+            # MQL tracking
+            'hs_date_entered_marketingqualifiedlead': (datetime.now() - timedelta(days=random.randint(1,365))).strftime('%Y-%m-%d') if lead_score >= 25 else '',
+            'num_conversion_events': str(random.randint(0, 10)),
+            # Lead source attribution
+            'hs_analytics_source':        random.choice(utm_sources),
+            'hs_analytics_source_data_1': random.choice(utm_mediums),
+            'hs_analytics_source_data_2': random.choice(utm_campaigns),
+            'hs_predictivecontactscore_v2': str(round(lead_score * 0.01, 4)),
+        })
 
     return contacts
 
@@ -419,15 +525,7 @@ def write_hubspot_data(
 
         # Generate contacts from persona contact_name / email
         logger.info(f"Creating contacts...")
-        sample_contacts = generate_sample_contacts(num_contacts)
-        # Overwrite first N contacts with persona contacts for correlation
-        if context:
-            for i, persona in enumerate(context.fixed_personas):
-                if i < len(sample_contacts):
-                    sample_contacts[i]['email']     = persona.contact_email
-                    sample_contacts[i]['firstname']  = persona.contact_name.split()[0]
-                    sample_contacts[i]['lastname']   = persona.contact_name.split()[-1]
-                    sample_contacts[i]['jobtitle']   = persona.contact_title
+        sample_contacts = generate_sample_contacts(num_contacts, context=context)
 
         for idx, contact_data in enumerate(sample_contacts):
             try:
