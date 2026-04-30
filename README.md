@@ -115,6 +115,40 @@ Both systems use the **exact same** configuration (`config.py`) and integrations
 
 ---
 
+## 📊 Data Model & Schema (The Analytics Blueprints)
+
+To build a professional **MRR Waterfall** or **Multi-touch Attribution** model, you need specific fields. Here is the exact data structure this engine generates across your sandbox:
+
+### 📋 1. HubSpot (CRM + Marketing Automation)
+We don't just create names; we populate the deep metadata required for Lead Scoring and Funnel Velocity models:
+*   **Identity:** `email`, `firstname`, `lastname`, `jobtitle`, `company_domain`.
+*   **Marketing Automation:** 
+    *   `hubspotscore`: Synthetic lead score (0-100) based on persona behavior.
+    *   `hs_email_open`, `hs_email_click`: Email engagement tracking.
+    *   `hs_analytics_source`: UTM Source (Google, LinkedIn, etc.) for attribution.
+    *   `num_conversion_events`: Number of form submissions or whitepaper downloads.
+*   **Sales Pipeline:** `lifecyclestage` (MQL -> SQL -> Opp), `dealstage`, `amount`.
+
+### 💳 2. Stripe (Subscription Billing)
+Structured to allow for Cohort Analysis and Churn prediction:
+*   **Customers:** Metadata includes the `hubspot_company_id` for cross-platform joins.
+*   **Subscriptions:** Tracks `plan_name` (Starter/Pro/Enterprise), `status` (active/past_due/canceled), and `billing_cycle`.
+*   **Invoices:** Up to 12 months of historical invoices with `subtotal`, `tax`, and `paid` status.
+
+### 📊 3. PostHog (Product Analytics)
+Simulates "Sticky" product behavior vs "Churn" signals:
+*   **Funnel Events:** `pageview` -> `user_signed_up` -> `onboarding_completed`.
+*   **Feature Usage:** `feature_used` events with properties like `feature_name` (e.g., "Auto-Remediation") and `duration_seconds`.
+*   **Health Signals:** High-frequency `latency_alert` or `export_failed_error` events for companies in the `at_risk` persona.
+
+### 🗄️ 4. Supabase (The Golden Layer)
+The primary source for your **Sales Intelligence** and DWH-ready facts:
+*   **`call_transcripts`:** Gong-style records with `outcome` (closed_won/lost), `objection_raised` (e.g., "Missing GCP scan"), and `buying_signal`.
+*   **`dim_date`:** A full calendar dimension (2 years back, 1 year forward) used for all time-series dbt joins.
+*   **`events`:** A unified product event log mirroring the PostHog stream for internal SQL analysis.
+
+---
+
 ## ▶️ Running the Engine
 
 ### Option A: The Real-Time Gateway (Interactive UI)
