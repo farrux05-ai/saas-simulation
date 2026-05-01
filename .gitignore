@@ -1,25 +1,26 @@
-# Environment variables
+# Environment Variables
 .env
 
-# Virtual environment
-venv/
-ENV/
-env/
-
-# Python cache
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+venv/
+.venv/
+ENV/
 
 # Logs
-logs/
 *.log
+app.log
 
-# Databases
-*.db
-*.sqlite
+# Simulation Utilities (Internal only)
+cleanup.py
+test_fd.py
+test_fd_tags.py
 
-# OS files
+# IDEs
+.vscode/
+.idea/
+
+# OS
 .DS_Store
-Thumbs.db
