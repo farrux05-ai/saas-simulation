@@ -52,7 +52,9 @@ All these layers rest on a **Supabase** Postgres database. It stores the core ap
 > **Why this stack?** This mirrors what real A-series B2B SaaS companies use. Every tool was chosen based on adoption data — not "cool factor."
 
 ### 📖 Want to dive deeper into the business cases?
-[**Read the Data Lifecycle & Correlation Logic Guide here.**](./docs/data_lifecycle.md)
+[**Read the Data Lifecycle & Correlation Logic Guide →**](./docs/data_lifecycle.md)
+
+[**Read the Business Model, ICP, GTM & Pricing Logic →**](./docs/business_model.md)
 
 ---
 
