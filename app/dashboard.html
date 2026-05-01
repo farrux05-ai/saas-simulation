@@ -143,6 +143,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-body);
   <div class="nav-item" onclick="switchView('inventory')" id="nav-inventory"><span class="nav-icon">🕸</span> Cloud Inventory</div>
   <div class="nav-item" onclick="switchView('compliance')" id="nav-compliance"><span class="nav-icon">📋</span> Compliance</div>
   <div class="nav-item" id="nav-settings" onclick="openSettings()"><span class="nav-icon">⚙</span> Settings</div>
+  <div class="nav-item" id="nav-support" onclick="openSupport()"><span class="nav-icon">🎧</span> Support</div>
 </div>
 
 <div class="main">
@@ -262,6 +263,30 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-body);
 
 <div class="floating-btn" onclick="showPaywall()">
   🛡 One-Click Remediation
+</div>
+
+<!-- SUPPORT MODAL -->
+<div class="modal-overlay" id="supportModal">
+  <div class="modal" style="max-width: 450px;">
+    <button class="modal-close" onclick="closeSupport()">×</button>
+    <div class="modal-header">
+      <div class="modal-icon" style="background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.2); color: var(--green2);">🎧</div>
+      <h2 class="modal-title">Get Support</h2>
+      <p class="modal-sub">How can our security team help you today?</p>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom: 16px;">
+        <label style="display:block; font-size:12px; color:var(--text3); margin-bottom:8px; font-family:var(--font-mono);">SUBJECT</label>
+        <input type="text" id="support-subject" placeholder="e.g. Need help with GCP scan" style="width:100%; background:var(--bg3); border:1px solid var(--border); padding:12px; border-radius:8px; color:white; font-family:var(--font-body);">
+      </div>
+      <div style="margin-bottom: 24px;">
+        <label style="display:block; font-size:12px; color:var(--text3); margin-bottom:8px; font-family:var(--font-mono);">DESCRIPTION</label>
+        <textarea id="support-desc" placeholder="Describe your issue..." style="width:100%; height:100px; background:var(--bg3); border:1px solid var(--border); padding:12px; border-radius:8px; color:white; font-family:var(--font-body); resize:none;"></textarea>
+      </div>
+      <button class="btn-upgrade" id="btn-send-support" onclick="submitSupport()">Send Ticket</button>
+      <p id="support-msg" style="text-align:center; font-size:12px; margin-top:12px; display:none;"></p>
+    </div>
+  </div>
 </div>
 
 <!-- PAYWALL MODAL -->
@@ -460,7 +485,11 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-body);
 
   // ── Backend wiring ───────────────────────────────────────────
   const API_BASE = 'http://localhost:5050';
-  const sgUser   = JSON.parse(sessionStorage.getItem('sg_user') || '{}');
+  let sgUser = {};
+  try { sgUser = JSON.parse(sessionStorage.getItem('sg_user') || '{}'); } catch(e) {}
+  if (!sgUser.email) sgUser.email = 'alex.rivera@acmecorp.com';
+  if (!sgUser.name) sgUser.name = 'Alex Rivera';
+  if (!sgUser.company) sgUser.company = 'Acme Corp';
 
   async function _post(endpoint, body) {
     try {
@@ -483,7 +512,43 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-body);
   }
 
   function closePaywall() { document.getElementById('paywallModal').classList.remove('show'); }
-  window.onclick = function(e) { if (e.target == document.getElementById('paywallModal')) closePaywall(); }
+  
+  function openSupport() { document.getElementById('supportModal').classList.add('show'); }
+  function closeSupport() { document.getElementById('supportModal').classList.remove('show'); }
+
+  async function submitSupport() {
+    const subject = document.getElementById('support-subject').value;
+    const desc = document.getElementById('support-desc').value;
+    const btn = document.getElementById('btn-send-support');
+    const msg = document.getElementById('support-msg');
+
+    if(!subject || !desc) { alert("Please fill in both fields."); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+
+    const response = await _post('/api/support-ticket', { subject, description: desc, category: 'technical' });
+
+    if(response && response.ok) {
+      btn.textContent = 'Ticket Sent ✓';
+      btn.style.background = 'var(--green)';
+      msg.style.display = 'block';
+      msg.style.color = 'var(--green2)';
+      msg.textContent = `Success! Ticket #${response.results.freshdesk_ticket_id} created.`;
+      setTimeout(() => { closeSupport(); btn.disabled = false; btn.textContent = 'Send Ticket'; btn.style.background = ''; msg.style.display = 'none'; }, 2500);
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Retry Send';
+      msg.style.display = 'block';
+      msg.style.color = 'var(--red)';
+      msg.textContent = 'Error sending ticket. Try again.';
+    }
+  }
+
+  window.onclick = function(e) { 
+    if (e.target == document.getElementById('paywallModal')) closePaywall();
+    if (e.target == document.getElementById('supportModal')) closeSupport();
+  }
 
   // Upgrade CTAs inside modal → Stripe Checkout
   async function handleUpgrade(planName, btnId) {
