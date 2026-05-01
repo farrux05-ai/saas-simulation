@@ -484,7 +484,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-body);
   document.getElementById('scanTime').textContent = `Today, ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
 
   // ── Backend wiring ───────────────────────────────────────────
-  const API_BASE = 'http://localhost:5050';
+  const API_BASE = '';
   let sgUser = {};
   try { sgUser = JSON.parse(sessionStorage.getItem('sg_user') || '{}'); } catch(e) {}
   if (!sgUser.email) sgUser.email = 'alex.rivera@acmecorp.com';

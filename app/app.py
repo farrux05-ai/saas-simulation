@@ -598,8 +598,8 @@ def upgrade_intent():
                     'quantity': 1,
                 }],
                 mode='subscription',
-                success_url=f'http://localhost:5050/success.html?session_id={{CHECKOUT_SESSION_ID}}&plan={plan}',
-                cancel_url='http://localhost:5050/dashboard.html',
+                success_url=request.host_url + f'success.html?session_id={{CHECKOUT_SESSION_ID}}&plan={plan}',
+                cancel_url=request.host_url + 'dashboard.html',
             )
             results["checkout_url"] = session.url
             logger.info(f"[Stripe] Checkout session created for {email} ({plan})")

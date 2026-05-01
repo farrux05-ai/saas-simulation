@@ -71,7 +71,7 @@
   document.getElementById('plan-name-display').textContent = planDisplayNames[purchasedPlan] || 'Pro';
 
   // PostHog event to track successful checkout completion
-  const API_BASE = 'http://localhost:5050';
+  const API_BASE = '';
   const sgUser   = JSON.parse(sessionStorage.getItem('sg_user') || '{}');
 
   // Mark the user's new plan locally so the dashboard knows
