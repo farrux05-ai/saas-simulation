@@ -3,9 +3,13 @@ name: RevOps Engine Daily Ingestion
 on:
   push:
     branches: [ main ]
+    paths:
+      - '**.py'
+      - 'requirements.txt'
+      - 'integrations/**'
   schedule:
-    - cron: '0 0 * * *'
-  workflow_dispatch:
+    - cron: '0 0 * * *'  # Runs daily at midnight
+  workflow_dispatch:      # Allows manual trigger from GitHub UI
 
 jobs:
   ingest:
